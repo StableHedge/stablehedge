@@ -1,0 +1,19 @@
+{
+  "name": "stablehedge-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "dev": "pnpm --filter @stablehedge/api dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "db:migrate": "pnpm --filter @stablehedge/api db:migrate",
+    "db:generate": "pnpm --filter @stablehedge/api db:generate",
+    "db:seed": "pnpm --filter @stablehedge/api db:seed",
+    "scripts:setup-issuer": "pnpm --filter @stablehedge/api scripts:setup-issuer",
+    "scripts:open-trustlines": "pnpm --filter @stablehedge/api scripts:open-trustlines"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  }
+}

@@ -1,0 +1,235 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DistributionStatus {
+  DRAFT
+  READY
+  SUBMITTED
+  SETTLED
+  FAILED
+}
+
+enum PaymentStatus {
+  PREPARED
+  SUBMITTED
+  VALIDATED
+  REFLECTED
+  FAILED
+}
+
+enum TrustlineStatus {
+  PENDING
+  ACTIVE
+  FROZEN
+  REVOKED
+}
+
+enum WalletRole {
+  ISSUER
+  TREASURY
+  INVESTOR
+}
+
+enum UserRole {
+  PORTFOLIO_MANAGER
+  SETTLEMENT_OFFICER
+  INVESTOR
+  AUDITOR
+  ADMIN
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  role         UserRole
+  passwordHash String
+  investorId   String?
+  investor     Investor? @relation(fields: [investorId], references: [id])
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  auditLogs AuditLog[]
+}
+
+model Token {
+  id            String   @id @default(cuid())
+  currencyCode  String
+  displayLabel  String
+  issuerAddress String
+  network       String   @default("testnet")
+  decimals      Int      @default(2)
+  createdAt     DateTime @default(now())
+
+  funds Fund[]
+
+  @@unique([currencyCode, issuerAddress, network])
+}
+
+model Wallet {
+  id            String     @id @default(cuid())
+  label         String
+  address       String     @unique
+  encryptedSeed String
+  role          WalletRole
+  network       String     @default("testnet")
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  fundsAsTreasury Fund[]    @relation("FundTreasury")
+  fundsAsIssuer   Fund[]    @relation("FundIssuer")
+  investor        Investor?
+}
+
+model Fund {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  network     String  @default("testnet")
+
+  treasuryAddress  String
+  treasuryWalletId String @unique
+  treasuryWallet   Wallet @relation("FundTreasury", fields: [treasuryWalletId], references: [id])
+
+  issuerAddress  String
+  issuerWalletId String?
+  issuerWallet   Wallet? @relation("FundIssuer", fields: [issuerWalletId], references: [id])
+
+  tokenId String
+  token   Token  @relation(fields: [tokenId], references: [id])
+
+  totalIssued Decimal  @default(0) @db.Decimal(30, 6)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  investments   Investment[]
+  distributions Distribution[]
+  transactions  XrplTransaction[]
+}
+
+model Investor {
+  id            String   @id @default(cuid())
+  externalId    String   @unique
+  name          String
+  email         String?
+  walletAddress String
+  walletId      String?  @unique
+  wallet        Wallet?  @relation(fields: [walletId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  investments       Investment[]
+  distributionItems DistributionItem[]
+  users             User[]
+}
+
+model Investment {
+  id                String          @id @default(cuid())
+  fundId            String
+  fund              Fund            @relation(fields: [fundId], references: [id])
+  investorId        String
+  investor          Investor        @relation(fields: [investorId], references: [id])
+  ownershipBp       Int
+  beginningValueUsd Decimal         @db.Decimal(30, 6)
+  trustlineStatus   TrustlineStatus @default(PENDING)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@unique([fundId, investorId])
+}
+
+model Distribution {
+  id                       String             @id @default(cuid())
+  fundId                   String
+  fund                     Fund               @relation(fields: [fundId], references: [id])
+  period                   String
+  periodStart              DateTime
+  periodEnd                DateTime
+  totalDistributableUsd    Decimal            @db.Decimal(30, 6)
+  fxReferenceRateKrwPerUsd Decimal?           @db.Decimal(20, 6)
+  status                   DistributionStatus @default(DRAFT)
+  calculatedAt             DateTime?
+  submittedAt              DateTime?
+  settledAt                DateTime?
+  failedAt                 DateTime?
+  notes                    String?
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+
+  items        DistributionItem[]
+  transactions XrplTransaction[]
+
+  @@unique([fundId, period])
+}
+
+model DistributionItem {
+  id             String        @id @default(cuid())
+  distributionId String
+  distribution   Distribution  @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+  investorId     String
+  investor       Investor      @relation(fields: [investorId], references: [id])
+  ownershipBp    Int
+  amountUsd      Decimal       @db.Decimal(30, 6)
+  amountKrw      Decimal?      @db.Decimal(30, 6)
+  paymentStatus  PaymentStatus @default(PREPARED)
+  txHash         String?
+  ledgerIndex    Int?
+  validatedAt    DateTime?
+  failureReason  String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([distributionId, investorId])
+}
+
+model XrplTransaction {
+  id             String        @id @default(cuid())
+  txHash         String        @unique
+  txType         String
+  fundId         String?
+  fund           Fund?         @relation(fields: [fundId], references: [id])
+  distributionId String?
+  distribution   Distribution? @relation(fields: [distributionId], references: [id])
+  status         PaymentStatus @default(PREPARED)
+  ledgerIndex    Int?
+  amount         Decimal?      @db.Decimal(30, 6)
+  currencyCode   String?
+  fromAddress    String?
+  toAddress      String?
+  destinationTag Int?
+  rawResult      Json?
+  submittedAt    DateTime      @default(now())
+  validatedAt    DateTime?
+  failureReason  String?
+
+  @@index([fundId, submittedAt])
+}
+
+model FxRate {
+  id         String   @id @default(cuid())
+  base       String
+  quote      String
+  rate       Decimal  @db.Decimal(20, 6)
+  source     String
+  observedAt DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([base, quote, observedAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String?
+  entityId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+}

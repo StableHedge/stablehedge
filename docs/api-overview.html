@@ -1,0 +1,1129 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>StableHedge API Overview</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --bg: #0b1020;
+    --bg-2: #131a33;
+    --fg: #e6edf6;
+    --muted: #8a96b3;
+    --accent: #6ee7b7;
+    --accent-2: #93c5fd;
+    --warn: #fbbf24;
+    --danger: #f87171;
+    --code-bg: #0a0f22;
+    --border: #25304f;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%; margin: 0;
+    background: radial-gradient(1200px 800px at 20% 0%, #1a2350 0%, var(--bg) 60%);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Pretendard", "Apple SD Gothic Neo", sans-serif;
+    overflow: hidden;
+  }
+  .deck { height: 100vh; width: 100vw; position: relative; }
+  .slide {
+    position: absolute; inset: 0;
+    padding: 56px 72px 90px;
+    display: none;
+    flex-direction: column;
+    animation: fade .25s ease-out;
+  }
+  .slide.active { display: flex; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  h1 { font-size: 40px; margin: 0 0 8px; letter-spacing: -0.02em; }
+  h2 { font-size: 30px; margin: 0 0 16px; letter-spacing: -0.01em; }
+  h3 { font-size: 18px; margin: 12px 0 6px; color: var(--accent-2); }
+  p, li { font-size: 16px; line-height: 1.55; color: #cfd6e6; }
+  .muted { color: var(--muted); }
+  .pill {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; margin-right: 6px;
+    background: #1f2a4d; color: var(--accent-2); border: 1px solid var(--border);
+  }
+  .pill.get  { color: var(--accent);    background: rgba(110,231,183,.08); border-color: rgba(110,231,183,.3); }
+  .pill.post { color: var(--warn);      background: rgba(251,191,36,.08);  border-color: rgba(251,191,36,.3); }
+  .pill.star { color: #f0abfc;          background: rgba(240,171,252,.1);  border-color: rgba(240,171,252,.35); }
+
+  code, pre, .mono { font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace; }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px; font-size: 13.5px; line-height: 1.5;
+    overflow: auto; max-height: 56vh;
+  }
+  .grid { display: grid; gap: 18px; }
+  .cols-2 { grid-template-columns: 1fr 1fr; }
+  .cols-3 { grid-template-columns: 1.1fr 1fr 1fr; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+  tr:hover td { background: rgba(147,197,253,.05); }
+
+  .card {
+    background: rgba(255,255,255,.02); border: 1px solid var(--border);
+    border-radius: 14px; padding: 16px 18px;
+  }
+  .kbd {
+    font-family: monospace; font-size: 12px; padding: 1px 6px;
+    background: #1c2444; border: 1px solid var(--border); border-radius: 6px;
+  }
+  .nav {
+    position: absolute; bottom: 18px; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0 28px; color: var(--muted); font-size: 13px;
+  }
+  .btn {
+    background: #1a2347; color: var(--fg); border: 1px solid var(--border);
+    padding: 6px 14px; border-radius: 999px; cursor: pointer; font-size: 13px;
+  }
+  .btn:hover { border-color: var(--accent-2); }
+  .progress {
+    position: absolute; top: 0; left: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width .3s;
+  }
+
+  .flow {
+    font-family: monospace; white-space: pre; font-size: 13.5px; color: #cfd6e6;
+    line-height: 1.5; background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px;
+  }
+  .badge { font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #2a3358; color: var(--muted); }
+
+  ul { padding-left: 22px; }
+  ul.tight li { margin: 2px 0; }
+  .hl { color: var(--accent); }
+  .hl2 { color: var(--accent-2); }
+  .danger { color: var(--danger); }
+
+  .title-slide {
+    align-items: flex-start; justify-content: center;
+  }
+  .title-slide h1 { font-size: 56px; }
+  .subtitle { color: var(--muted); font-size: 18px; margin-top: 4px; }
+
+  .endpoint-h {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 4px;
+  }
+  .endpoint-h .path { font-family: monospace; font-size: 22px; }
+  .schema-row {
+    display: grid;
+    grid-template-columns: 1fr 70px 1fr 70px 1fr;
+    gap: 12px;
+    align-items: stretch;
+  }
+  .schema-box {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+    padding: 18px;
+    min-height: 210px;
+  }
+  .schema-box h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 20px;
+    color: var(--fg);
+  }
+  .schema-box .caption {
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin-bottom: 10px;
+  }
+  .schema-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent-2);
+    font-size: 34px;
+    font-weight: 700;
+  }
+  .schema-list {
+    margin: 0;
+    padding-left: 18px;
+  }
+  .schema-list li {
+    margin: 4px 0;
+    font-size: 14px;
+  }
+  .schema-note {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .erd-grid {
+    display: grid;
+    grid-template-columns: 0.9fr 1.05fr 0.95fr;
+    gap: 16px;
+    margin-top: 14px;
+    align-items: start;
+    position: relative;
+  }
+  .erd-col {
+    display: grid;
+    gap: 12px;
+  }
+  .erd-col.center {
+    grid-template-rows: auto auto auto;
+  }
+  .erd-card {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+    padding: 12px 14px;
+    position: relative;
+  }
+  .erd-card h3 {
+    margin: 0 0 6px;
+    color: var(--fg);
+    font-size: 18px;
+  }
+  .erd-meta {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin-bottom: 6px;
+  }
+  .erd-fields {
+    display: grid;
+    gap: 2px;
+    font-size: 12px;
+    color: #d6ddee;
+  }
+  .erd-desc {
+    font-size: 12px;
+    color: #cfd6e6;
+    margin-bottom: 8px;
+    line-height: 1.35;
+  }
+  .erd-fields .pk { color: var(--accent); }
+  .erd-fields .fk { color: var(--accent-2); }
+  .erd-stage {
+    position: relative;
+    margin-top: 14px;
+  }
+  .erd-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .erd-grid, .erd-card {
+    position: relative;
+    z-index: 1;
+  }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+<div class="deck" id="deck">
+
+  <!-- 1. Title -->
+  <section class="slide active title-slide">
+    <div style="margin-top: 10vh;">
+      <div class="muted" style="font-size: 14px; letter-spacing: .15em;">KFIP 2026 · BACKEND OVERVIEW</div>
+      <h1>StableHedge API</h1>
+      <div class="subtitle">해외 부동산 펀드 배당 백엔드. 계산과 리포팅은 오프체인, 실제 정산은 submit 시점에만 XRPL을 사용</div>
+      <div style="margin-top: 28px;" class="muted">
+        Fastify 5 · Prisma · PostgreSQL · xrpl.js 4 · TypeScript 5
+      </div>
+      <div style="margin-top: 80px;" class="muted">
+        <span class="kbd">→</span> 다음 · <span class="kbd">←</span> 이전 · <span class="kbd">F</span> 전체화면
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. DB Schema -->
+  <section class="slide">
+    <h2>DB Schema</h2>
+    <p class="muted">Prisma 기준 핵심 관계는 세 축이다. <span class="hl">Fund ↔ Investor</span>는 <code>Investment</code>로 연결되고, <span class="hl">Fund → Distribution → DistributionItem</span>이 배당 정산 흐름을 만들며, submit 이후 결과는 <code>XrplTransaction</code>으로 남는다.</p>
+
+    <div class="erd-stage" id="erd-stage">
+      <canvas class="erd-canvas" id="erd-canvas"></canvas>
+      <div class="erd-grid">
+      <div class="erd-col">
+        <div class="erd-card" id="erd-wallet">
+          <div class="erd-meta">Reference</div>
+          <h3>Wallet</h3>
+          <div class="erd-desc">issuer, treasury, investor 계정의 온체인 주소와 시드 저장소다.</div>
+          <div class="erd-fields mono">
+            <div class="pk">PK id</div>
+            <div>address</div>
+            <div>role</div>
+            <div>network</div>
+          </div>
+        </div>
+
+        <div class="erd-card" id="erd-investor">
+          <div class="erd-meta">Master</div>
+          <h3>Investor</h3>
+          <div class="erd-desc">투자자 마스터. 투자자 식별자와 지갑 주소를 보관한다.</div>
+          <div class="erd-fields mono">
+            <div class="pk">PK id</div>
+            <div>externalId</div>
+            <div>name</div>
+            <div>walletAddress</div>
+            <div class="fk">walletId → Wallet</div>
+          </div>
+        </div>
+
+        <div class="erd-card" id="erd-investment">
+          <div class="erd-meta">Join</div>
+          <h3>Investment</h3>
+          <div class="erd-desc">펀드와 투자자를 연결하는 가입/지분 정보다.</div>
+          <div class="erd-fields mono">
+            <div class="pk">PK id</div>
+            <div class="fk">fundId → Fund</div>
+            <div class="fk">investorId → Investor</div>
+            <div>ownershipBp</div>
+            <div>beginningValueUsd</div>
+            <div>trustlineStatus</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="erd-col center">
+        <div class="erd-card" id="erd-fund">
+          <div class="erd-meta">Core Product</div>
+          <h3>Fund</h3>
+          <div class="erd-desc">장기 존속하는 투자상품 단위다. 모든 배당과 정산의 상위 엔터티다.</div>
+          <div class="erd-fields mono">
+            <div class="pk">PK id</div>
+            <div>name</div>
+            <div class="fk">tokenId → Token</div>
+            <div class="fk">treasuryWalletId → Wallet</div>
+            <div class="fk">issuerWalletId → Wallet</div>
+            <div>totalIssued</div>
+          </div>
+        </div>
+
+        <div class="erd-card" id="erd-distribution">
+          <div class="erd-meta">Period Event</div>
+          <h3>Distribution</h3>
+          <div class="erd-desc">특정 기간에 생성되는 배당 batch 1건이다.</div>
+          <div class="erd-fields mono">
+            <div class="pk">PK id</div>
+            <div class="fk">fundId → Fund</div>
+            <div>period</div>
+            <div>periodStart / periodEnd</div>
+            <div>totalDistributableUsd</div>
+            <div>fxReferenceRateKrwPerUsd</div>
+            <div>status</div>
+          </div>
+        </div>
+
+        <div class="erd-card" id="erd-token">
+          <div class="erd-meta">Reference</div>
+          <h3>Token</h3>
+          <div class="erd-desc">펀드가 어떤 issued token으로 정산하는지 정의하는 기준 정보다.</div>
+          <div class="erd-fields mono">
+            <div class="pk">PK id</div>
+            <div>currencyCode</div>
+            <div>displayLabel</div>
+            <div>issuerAddress</div>
+            <div>network</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="erd-col">
+        <div class="erd-card" id="erd-distribution-item">
+          <div class="erd-meta">Per-Investor Payout</div>
+          <h3>DistributionItem</h3>
+          <div class="erd-desc">배당 batch 안에서 투자자 1명분 지급 레코드다.</div>
+          <div class="erd-fields mono">
+            <div class="pk">PK id</div>
+            <div class="fk">distributionId → Distribution</div>
+            <div class="fk">investorId → Investor</div>
+            <div>ownershipBp</div>
+            <div>amountUsd / amountKrw</div>
+            <div>paymentStatus</div>
+            <div>txHash / ledgerIndex</div>
+          </div>
+        </div>
+
+        <div class="erd-card" id="erd-xrpl-transaction">
+          <div class="erd-meta">On-Chain Audit</div>
+          <h3>XrplTransaction</h3>
+          <div class="erd-desc">submit 이후 실제 XRPL 제출 결과를 저장하는 온체인 감사 로그다.</div>
+          <div class="erd-fields mono">
+            <div class="pk">PK id</div>
+            <div>txHash</div>
+            <div class="fk">fundId → Fund</div>
+            <div class="fk">distributionId → Distribution</div>
+            <div>status</div>
+            <div>ledgerIndex</div>
+            <div>rawResult</div>
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- 3. Schema Notes -->
+  <section class="slide">
+    <h2>Schema Reading Points</h2>
+    <div class="grid cols-2" style="margin-top: 14px;">
+      <div class="card">
+        <h3>도메인 해석</h3>
+        <ul class="tight">
+          <li><code>Fund</code>는 장기 존속하는 투자상품이다.</li>
+          <li><code>Investment</code>가 펀드와 투자자를 연결하고 지분율을 들고 있다.</li>
+          <li><code>Distribution</code>은 분기별 또는 이벤트성 배당 batch다.</li>
+          <li><code>DistributionItem</code>은 투자자 1명분 개별 지급 건이다.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>운영 해석</h3>
+        <ul class="tight">
+          <li><code>Distribution.status</code>는 전체 batch 상태다.</li>
+          <li><code>DistributionItem.paymentStatus</code>는 개별 지급 상태다.</li>
+          <li><code>XrplTransaction</code>은 submit 이후의 온체인 감사 로그다.</li>
+          <li>즉, 하나의 배당 batch 안에 여러 investor payment가 들어간다.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card" style="margin-top: 16px;">
+      <h3>이 슬라이드 다음 설명 순서</h3>
+      <div class="flow">Fund
+  → Distribution 생성 (DRAFT)
+  → Calculate로 DistributionItem 생성 (READY)
+  → Submit 시 investor별 XRPL Payment 제출
+  → 결과를 XrplTransaction + DistributionItem.paymentStatus에 반영</div>
+    </div>
+  </section>
+
+  <!-- 4. API List -->
+  <section class="slide">
+    <h2>전체 API 목록</h2>
+    <p class="muted">Fastify 라우트 4개 그룹 + healthz. 모든 prefix는 <code>/api/*</code>.</p>
+    <div class="card" style="margin-top: 8px;">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Figma 화면</th><th>역할</th></tr></thead>
+      <tbody>
+        <tr><td><span class="pill get">GET</span></td><td>/healthz</td><td>—</td><td>liveness</td></tr>
+        <tr><td><span class="pill get">GET</span></td><td>/api/funds</td><td>(공용)</td><td>펀드 목록</td></tr>
+        <tr><td><span class="pill get">GET</span></td><td>/api/funds/:fundId</td><td>(공용)</td><td>펀드 상세 + 투자자/지분</td></tr>
+        <tr><td><span class="pill post">POST</span></td><td>/api/distributions</td><td>Dashboard</td><td>분배(분기) 생성 — DRAFT</td></tr>
+        <tr><td><span class="pill get">GET</span></td><td>/api/distributions</td><td>Dashboard</td><td>분배 목록</td></tr>
+        <tr><td><span class="pill get">GET</span></td><td>/api/distributions/:id</td><td>Dashboard</td><td>화면 페이로드</td></tr>
+        <tr><td><span class="pill post">POST</span></td><td>/api/distributions/:id/calculate</td><td>Dashboard</td><td>"Calculate" 버튼 — 오프체인</td></tr>
+        <tr><td><span class="pill post star">POST ★</span></td><td>/api/distributions/:id/submit</td><td>Dashboard</td><td><b>"Submit XRPL Payment" — testnet 실제 송금</b></td></tr>
+        <tr><td><span class="pill get">GET</span></td><td>/api/investors</td><td>(공용)</td><td>투자자 목록</td></tr>
+        <tr><td><span class="pill get">GET</span></td><td>/api/investors/:investorId/statements</td><td>Statement</td><td>투자자 명세서 — fund별 그룹</td></tr>
+        <tr><td><span class="pill get">GET</span></td><td>/api/investors/:investorId/portfolio-statement</td><td>Statement</td><td>투자자 포트폴리오 요약</td></tr>
+        <tr><td><span class="pill get">GET</span></td><td>/api/settlement-monitor/funds/:fundId</td><td>Monitor</td><td>국고/투자자 잔액 + 최근 트랜잭션</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <!-- 5. Lifecycle -->
+  <section class="slide">
+    <h2>분배 라이프사이클</h2>
+    <p>API 호출 순서는 본질적으로 <span class="hl">상태머신</span>을 따라간다.</p>
+    <div class="grid cols-2" style="margin-top: 12px;">
+      <div class="card">
+        <h3>Distribution.status</h3>
+        <pre>
+DRAFT
+  │  POST /api/distributions/:id/calculate
+  ▼
+READY
+  │  POST /api/distributions/:id/submit
+  ▼
+SUBMITTED
+  │  (XRPL Ledger 검증)
+  ├──▶ SETTLED   (모두 VALIDATED)
+  └──▶ FAILED    (하나라도 실패)</pre>
+      </div>
+      <div class="card">
+        <h3>DistributionItem.paymentStatus</h3>
+        <pre>
+PREPARED   (계산 끝, 아직 송금 안 함)
+  │  treasury.sign + submit
+  ▼
+SUBMITTED  (txHash 결정, 검증 대기)
+  │  ledger validation
+  ├──▶ VALIDATED
+  └──▶ FAILED</pre>
+        <p class="muted" style="margin-top:8px;">REFLECTED는 watcher가 추후 잔액 반영 시 사용</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. /healthz + funds -->
+  <section class="slide">
+    <h2>Health & Funds</h2>
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="endpoint-h"><span class="pill get">GET</span><span class="path">/healthz</span></div>
+      <p class="muted">서버 가동 + 어느 XRPL 네트워크에 붙어있는지 1초컷 확인.</p>
+      <pre>{ "status": "ok", "network": "testnet" }</pre>
+    </div>
+
+    <div class="grid cols-2">
+      <div class="card">
+        <div class="endpoint-h"><span class="pill get">GET</span><span class="path">/api/funds</span></div>
+        <p class="muted">전체 펀드 목록. 토큰·국고주소·투자자 수까지 카드용으로 압축.</p>
+        <pre>[
+  {
+    "id": "fund-redwood",
+    "name": "Redwood Logistics Center Fund I",
+    "network": "testnet",
+    "treasuryAddress": "rTreasury...",
+    "issuerAddress":   "rIssuer...",
+    "token": { "currencyCode":"USD", "displayLabel":"RUSD-DEMO" },
+    "totalIssued": "1500000",
+    "investorCount": 3
+  }
+]</pre>
+      </div>
+
+      <div class="card">
+        <div class="endpoint-h"><span class="pill get">GET</span><span class="path">/api/funds/:fundId</span></div>
+        <p class="muted">펀드 상세 + 투자자별 지분(bp)·trustline 상태. <span class="hl2">Investment</span> 조인.</p>
+        <pre>{
+  "id": "fund-redwood",
+  "token": {...},
+  "treasuryAddress": "rT...",
+  "totalIssued": "1500000",
+  "investors": [
+    {
+      "externalId": "INV-0001",
+      "ownershipBp": 5000,        // 50.00%
+      "ownershipPercent": "50.00",
+      "trustlineStatus": "ACTIVE"
+    }
+  ]
+}</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. POST /api/distributions -->
+  <section class="slide">
+    <h2>분배 생성 — Draft 만들기</h2>
+    <div class="card">
+      <div class="endpoint-h"><span class="pill post">POST</span><span class="path">/api/distributions</span></div>
+      <p>분기·총액·환율을 받아 <span class="hl">DRAFT</span> 상태의 Distribution 1건을 만든다. 아직 투자자별 금액 분배는 X.</p>
+    </div>
+    <div class="grid cols-2" style="margin-top:14px;">
+      <div class="card">
+        <h3>Request body (Zod 검증)</h3>
+        <pre>{
+  "fundId": "fund-redwood",
+  "period": "Q1-2026",
+  "periodStart": "2026-01-01T00:00:00Z",
+  "periodEnd":   "2026-03-31T23:59:59Z",
+  "totalDistributableUsd": "1000000",
+  "fxReferenceRateKrwPerUsd": "1468"   // optional (demo-fixed)
+}</pre>
+      </div>
+      <div class="card">
+        <h3>내부 동작</h3>
+        <ul class="tight">
+          <li>fxRate 미입력 시 <code>fx-service.getCurrentKrwPerUsd()</code> 폴백 (DB 최신 → 1468 demo-fixed)</li>
+          <li><code>prisma.distribution.create</code> · status=<span class="hl">DRAFT</span></li>
+          <li>아직 <code>DistributionItem</code>은 없음</li>
+        </ul>
+        <h3>Response</h3>
+        <pre>{ "id": "ckl…", "status": "DRAFT" }</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8. GET /api/distributions/:id -->
+  <section class="slide">
+    <h2>분배 조회 — 화면 페이로드</h2>
+    <div class="grid cols-2">
+      <div class="card">
+        <div class="endpoint-h"><span class="pill get">GET</span><span class="path">/api/distributions</span></div>
+        <p class="muted">목록. <code>?fundId=</code> 필터, periodStart desc.</p>
+        <pre>[{
+  "id": "...",
+  "fundId": "fund-redwood",
+  "period": "Q1-2026",
+  "status": "READY",
+  "totalDistributableUsd": "1000000",
+  "itemCount": 3
+}]</pre>
+      </div>
+      <div class="card">
+        <div class="endpoint-h"><span class="pill get">GET</span><span class="path">/api/distributions/:id</span></div>
+        <p class="muted">Deal Distribution Dashboard 진입 시 호출.</p>
+        <ul class="tight">
+          <li><code>fund + token</code></li>
+          <li><code>items[]</code> — 투자자별 amount, paymentStatus, txHash</li>
+          <li><code>trustlineStatus</code> 별도 join</li>
+          <li><code>explorerUrl</code> 자동 생성 (testnet.xrpl.org)</li>
+        </ul>
+        <pre>{
+  "fund": {...},
+  "status": "SUBMITTED",
+  "items": [
+    {
+      "investor": { "externalId":"INV-0001", "name":"Investor A" },
+      "ownershipPercent": "50.00",
+      "amountUsd": "500000",
+      "amountKrw": "734000000",
+      "paymentStatus": "VALIDATED",
+      "txHash": "ABCD...",
+      "explorerUrl": "https://testnet.xrpl.org/transactions/ABCD..."
+    }
+  ]
+}</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9. /calculate -->
+  <section class="slide">
+    <h2>Calculate Distribution — "오프체인" 계산</h2>
+    <div class="card">
+      <div class="endpoint-h"><span class="pill post">POST</span><span class="path">/api/distributions/:id/calculate</span></div>
+      <p>Dashboard의 <b>Calculate Distribution</b> 버튼. <span class="danger">XRPL을 건드리지 않는다.</span> DB 안에서 지분율로 USD를 쪼갠다.</p>
+    </div>
+
+    <div class="grid cols-2" style="margin-top: 14px;">
+      <div class="card">
+        <h3>핵심 공식</h3>
+        <pre>amountUsd = totalDistributableUsd × ownershipBp / 10000
+amountKrw = amountUsd × fxRate    // fx 있을 때만</pre>
+        <p class="muted">basis-point: 5000 → 50.00%</p>
+        <h3>가드</h3>
+        <ul class="tight">
+          <li>status가 <code>SUBMITTED</code>/<code>SETTLED</code>면 거부 (재계산 금지)</li>
+          <li>같은 distributionId의 기존 items 전부 삭제 후 재생성 (atomic)</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>흐름 (distribution-engine.ts)</h3>
+<pre>distribution + investments 로드
+   │
+   ▼
+computeDistributionAmounts(total, [{investorId, ownershipBp}], fx)
+   │  (distribution-math.ts, 순수 함수)
+   ▼
+prisma.$transaction:
+   ├─ distributionItem.deleteMany
+   ├─ distributionItem.createMany (status=PREPARED)
+   └─ distribution.update { status: READY, calculatedAt }</pre>
+        <h3>Response</h3>
+        <pre>{ "id":"...", "status":"READY", "itemCount":3, "calculatedAt":"..." }</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10. Why XRPL only at submit -->
+  <section class="slide">
+    <h2>어디서 XRPL이 필요한가</h2>
+    <p>이 프로젝트의 본질은 <span class="hl">오프체인 금융 운영 플랫폼</span>이다. XRPL은 모든 단계에 필요한 것이 아니라 <span class="hl2">정산 실행과 증빙</span> 단계에서만 필요하다.</p>
+
+    <div class="grid cols-2" style="margin-top: 12px;">
+      <div class="card">
+        <h3>XRPL이 굳이 필요 없는 영역</h3>
+        <ul class="tight">
+          <li>환노출 분석, 환율 시나리오 계산</li>
+          <li>지분율 기준 배당 금액 계산</li>
+          <li>투자자 리포트 생성</li>
+          <li>헤지 계약 등록 및 손익 계산</li>
+          <li>운영 대시보드와 조회 API</li>
+        </ul>
+        <p class="muted" style="margin-top:8px;">이 영역은 Fastify + Prisma + PostgreSQL만으로 충분하다.</p>
+      </div>
+      <div class="card" style="border-color: rgba(240,171,252,.4);">
+        <h3 style="color:#f0abfc;">XRPL이 필요한 핵심 순간</h3>
+        <ul class="tight">
+          <li>투자자별 토큰 지급을 실제로 실행할 때</li>
+          <li>txHash, ledger status, explorer link를 남길 때</li>
+          <li>온체인 지급 증빙을 Investor Statement에 연결할 때</li>
+          <li>Ledger Watcher로 제출 결과를 재동기화할 때</li>
+        </ul>
+        <p class="muted" style="margin-top:8px;">즉, <code>POST /api/distributions/:id/submit</code>이 XRPL settlement rail에 진입하는 유일한 관문이다.</p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 14px;">
+      <h3>한 줄 구조</h3>
+      <div class="flow">Create Distribution   →   Calculate Distribution   →   Submit Distribution
+DB 기록 / 환율 적용      DB 계산 / READY 전환         XRPL Payment 제출 / txHash / validation</div>
+    </div>
+  </section>
+
+  <!-- 11. /submit (★) -->
+  <section class="slide">
+    <h2><span class="pill post star">POST ★</span> /api/distributions/:id/submit</h2>
+    <p>이 시스템에서 <b class="hl">유일하게 XRPL Testnet에 실제 트랜잭션을 보내는 엔드포인트.</b></p>
+
+    <div class="grid cols-2" style="margin-top: 8px;">
+      <div class="card">
+        <h3>전제 조건</h3>
+        <ul class="tight">
+          <li>Distribution.status = <code>READY</code></li>
+          <li>Fund에 treasuryWallet (encryptedSeed) 존재</li>
+          <li>items 1개 이상</li>
+        </ul>
+        <h3>입력 → 출력</h3>
+        <pre>params: { id: "<distId>" }
+
+→ {
+  "id": "...",
+  "status": "SETTLED",
+  "items": [{
+    "investorExternalId": "INV-0001",
+    "paymentStatus": "VALIDATED",
+    "txHash": "ABCD...",
+    "ledgerIndex": 12345678,
+    "explorerUrl": "https://testnet.xrpl.org/..."
+  }]
+}</pre>
+      </div>
+      <div class="card">
+        <h3>Payment 트랜잭션 모양 (per investor)</h3>
+<pre>{
+  TransactionType: "Payment",
+  Account:     <treasury.address>,
+  Destination: <investor.walletAddress>,
+  Amount: {
+    currency: "USD",            // IOU
+    issuer:   <issuerAddress>,
+    value:    "<amountUsd>"
+  },
+  DestinationTag: 1,            // INV-0001 → 1
+  Memos: [
+    {period},
+    {fundId},
+    {distributionId},
+    {investorExternalId},
+    {distributionItemId}
+  ]
+}</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12. /submit sequence -->
+  <section class="slide">
+    <h2>Submit — 시퀀스 다이어그램</h2>
+<div class="flow">Route                Service               xrpl-adapter           xrpl.js / WSS         DB
+─────                ───────               ────────────           ─────────────         ──
+POST /:id/submit ─▶  submitDistribution()
+                       │ load + status guard
+                       │ decryptSeed(treasury) ─────────────────────────────────────────▶ wallet-vault
+                       │ status=SUBMITTED, submittedAt ─────────────────────────────────▶ Distribution
+                       │
+                       ▼
+                     submitDistributionPayments() ─▶  withClient(WSS)
+                                                       client.connect()
+                       for each payment:                │
+                         build Payment tx              │
+                                                       │ client.autofill(tx)
+                                                       │ wallet.sign(prepared)  ──▶  txHash 결정 (오프라인)
+                       onSubmitted({txHash}) ◀─────────┤
+                         ├─ item.paymentStatus=SUBMITTED, txHash ─────────────────────▶ DistributionItem
+                         └─ XrplTransaction.upsert(SUBMITTED) ────────────────────────▶ XrplTransaction
+                                                       │
+                                                       │ client.submitAndWait(blob)
+                                                       │   ⋯ ledger validation ⋯
+                                                       │ ◀── meta.TransactionResult
+                       result: VALIDATED | FAILED ◀────┤
+                       per-item update ────────────────────────────────────────────────▶ DistributionItem
+                                                                                         XrplTransaction
+                       │  (loop end)
+                       │
+                       ▼
+                     all VALIDATED → status=SETTLED
+                     any FAILED    → status=FAILED  ─────────────────────────────────────▶ Distribution</div>
+    <p class="muted" style="margin-top:8px;">
+      🟢 <b>핵심 트릭:</b> sign 직후 txHash가 결정되므로 <span class="hl2">검증 응답 도착 전</span>에 미리 DB에 SUBMITTED+txHash를 기록한다(<code>onSubmitted</code> 콜백). 서버가 죽어도 ledger-watcher가 이어받아 동기화 → 멱등성.
+    </p>
+  </section>
+
+  <!-- 13. Investor Statement -->
+  <section class="slide">
+    <h2>Investor Statement</h2>
+    <div class="grid cols-2" style="margin-top:14px;">
+      <div class="card">
+        <div class="endpoint-h"><span class="pill get">GET</span><span class="path">/api/investors/:investorId/statements</span></div>
+        <p class="muted">투자자 화면용 grouped API. <code>?period=Q1-2026</code> · <code>?fundId=...</code> 필터.</p>
+        <h3>내부 처리</h3>
+        <ul class="tight">
+          <li>해당 investorId의 <code>DistributionItem</code> 전부 조회 (distribution + fund + token join)</li>
+          <li>같은 펀드의 <code>Investment</code>로 <code>beginningValueUsd</code> 가져와 <span class="hl">distributionYield</span> 계산</li>
+          <li><code>paymentStatus</code> → <code>StatementStatus</code>(Settled/Submitted/Pending/Failed) 매핑</li>
+          <li><code>txHash</code> 있으면 <code>onChainProof</code> 블록 + explorerUrl 생성</li>
+          <li>반환 전 <code>fundId</code> 기준으로 묶어서 fund별 statement group 생성</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Grouped response (요약)</h3>
+        <pre>{
+  "investor": { "externalId":"INV-0001", "name":"Investor A" },
+  "fundCount": 2,
+  "totalStatements": 2,
+  "funds": [
+    {
+      "fund": { "id":"fund-redwood", "name":"Redwood ..." },
+      "statementCount": 1,
+      "totalDistributedUsd": "500000",
+      "latestReportingPeriod": "Q1-2026",
+      "items": [{
+        "reportingPeriod": "Q1-2026",
+        "distributionAmount": { "token":"RUSD-DEMO", "value":"500000" },
+        "status": "Settled",
+        "transactionHash": "ABCD..."
+      }]
+    }
+  ]
+}</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- 14. Portfolio Statement -->
+  <section class="slide">
+    <h2>Portfolio Statement</h2>
+    <div class="grid cols-2" style="margin-top:14px;">
+      <div class="card">
+        <div class="endpoint-h"><span class="pill get">GET</span><span class="path">/api/investors/:investorId/portfolio-statement</span></div>
+        <p class="muted">투자자 전체 포트폴리오 요약. multi-fund 환경에서 상단 KPI 카드와 fund 요약 테이블에 대응.</p>
+        <ul class="tight">
+          <li>fund 수, 시작금액 합, 총 배당 USD/KRW 합산</li>
+          <li>settled / pending statement 개수 집계</li>
+          <li>fund별 현재 지분율, 누적 배당, latest period 제공</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Response (요약)</h3>
+        <pre>{
+  "investor": { "externalId":"INV-0001", "walletAddress":"r..." },
+  "totals": {
+    "fundCount": 2,
+    "totalBeginningValueUsd": "700000",
+    "totalDistributionsUsd": "548000",
+    "totalDistributionsKrw": "804464000",
+    "settledCount": 1,
+    "pendingCount": 1
+  },
+  "funds": [
+    {
+      "fund": { "id":"fund-harbor", "name":"Harbor ..." },
+      "currentOwnershipPercent": "40.00",
+      "totalDistributionsUsd": "48000",
+      "statementCount": 1
+    }
+  ]
+}</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- 15. Settlement Monitor -->
+  <section class="slide">
+    <h2>XRPL Settlement Monitor</h2>
+    <div class="card">
+      <div class="endpoint-h"><span class="pill get">GET</span><span class="path">/api/settlement-monitor/funds/:fundId</span></div>
+      <p class="muted">펀드 단위 대시보드. <code>?page=1&pageSize=5</code>로 최근 트랜잭션 페이지네이션.</p>
+    </div>
+    <div class="grid cols-2" style="margin-top:14px;">
+      <div class="card">
+        <h3>잔액 산출 로직</h3>
+        <pre>// "투자자 잔액" = 검증된 분배의 합산
+settledItems = DistributionItem
+  where fund=fundId AND paymentStatus IN (VALIDATED,REFLECTED)
+balanceByInvestor = group(settledItems).sum(amountUsd)
+
+investorBalancesTotal = Σ balanceByInvestor
+treasuryBalance       = totalIssued − investorBalancesTotal
+
+// "이번 송금 전" 추정치
+beforePayout = treasuryBalance + latestTxAmount
+change       = treasuryBalance − beforePayout</pre>
+        <p class="muted">잔액 전용 ledger 추가 전까지의 라이트 프록시. mainnet 가면 account_lines로 교체 예정.</p>
+      </div>
+      <div class="card">
+        <h3>Response (요약)</h3>
+        <pre>{
+  "fund": {...},
+  "treasuryWallet": "rT...",
+  "issuerWallet":   "rI...",
+  "summary": {
+    "totalIssued": "1500000.00",
+    "treasuryBalance": "500000.00",
+    "investorBalancesTotal": "1000000.00",
+    "latestTransactionStatus": { "status":"VALIDATED", "ledgerIndex":12345678 }
+  },
+  "treasuryBalanceCard": {...},
+  "investorBalances": [
+    { "investorId":"INV-0001", "balance":"500000.00", "percent":"50.00" }
+  ],
+  "recentTransactions": [
+    { "txHash":"...", "amount":"500000", "status":"VALIDATED", "explorerUrl":"..." }
+  ],
+  "pagination": { "page":1, "pageSize":5, "total":42 }
+}</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- 16. Side channel: ledger-watcher -->
+  <section class="slide">
+    <h2>사이드 채널 — Ledger Watcher</h2>
+    <p>HTTP API는 아니지만 모든 API의 정확성을 떠받치는 백그라운드 컴포넌트.</p>
+    <div class="grid cols-2" style="margin-top:12px;">
+      <div class="card">
+        <h3>역할</h3>
+        <ul class="tight">
+          <li>서버 부팅 시 <code>startLedgerWatcher()</code> 1회</li>
+          <li>모든 펀드의 <code>treasuryAddress</code>를 WSS 구독</li>
+          <li>새 트랜잭션 수신 → <code>XrplTransaction</code> upsert</li>
+          <li><code>validated</code> 이벤트 → 매칭되는 <code>DistributionItem</code>을 VALIDATED로 승격</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>왜 필요한가</h3>
+        <ul class="tight">
+          <li><b>멱등성</b>: <code>/submit</code>이 응답 받기 전에 죽어도 ledger가 진실. 재기동 시 watcher가 따라잡음</li>
+          <li><b>외부 입금</b>: 추후 redemption/입금이 있어도 자동 기록</li>
+          <li><b>감사</b>: <code>rawResult</code>에 ledger 응답 통째로 보관</li>
+        </ul>
+      </div>
+    </div>
+    <pre style="margin-top:14px;">// xrpl.js 사용
+client.request({ command: "subscribe", accounts: [...treasuries] })
+client.on("transaction", (event) =>
+  prisma.xrplTransaction.upsert({ where: { txHash }, ... })
+)</pre>
+  </section>
+
+  <!-- 17. Wrap -->
+  <section class="slide">
+    <h2>요약 한 장</h2>
+    <div class="grid cols-3" style="margin-top:6px;">
+      <div class="card">
+        <h3>읽기 (조회)</h3>
+        <ul class="tight mono">
+          <li>GET /healthz</li>
+          <li>GET /api/funds</li>
+          <li>GET /api/funds/:fundId</li>
+          <li>GET /api/distributions</li>
+          <li>GET /api/distributions/:id</li>
+          <li>GET /api/investors</li>
+          <li>GET /api/investors/:id/statements</li>
+          <li>GET /api/investors/:id/portfolio-statement</li>
+          <li>GET /api/settlement-monitor/funds/:fundId</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>쓰기 (오프체인)</h3>
+        <ul class="tight mono">
+          <li>POST /api/distributions
+            <div class="muted" style="font-size:13px;">DRAFT 생성</div></li>
+          <li>POST /api/distributions/:id/calculate
+            <div class="muted" style="font-size:13px;">지분율로 분배 계산 → READY</div></li>
+        </ul>
+      </div>
+      <div class="card" style="border-color: rgba(240,171,252,.4);">
+        <h3 style="color:#f0abfc;">쓰기 (★ 온체인)</h3>
+        <ul class="tight mono">
+          <li>POST /api/distributions/:id/submit
+            <div class="muted" style="font-size:13px;">XRPL Testnet에 IOU Payment N건 발사 → SUBMITTED → SETTLED</div>
+          </li>
+        </ul>
+        <h3 style="margin-top:10px;">사이드 채널</h3>
+        <ul class="tight">
+          <li>ledger-watcher (WSS subscribe → DB sync)</li>
+        </ul>
+      </div>
+    </div>
+    <p class="muted" style="margin-top:18px;">
+      모든 쓰기 API는 상태머신을 따른다: <span class="mono hl">DRAFT → READY → SUBMITTED → SETTLED</span>.
+      체인을 건드리는 곳은 <span class="mono hl2">/submit</span> 단 하나이며, XRPL의 역할은 여기서 <span class="hl">실제 정산 실행 + 온체인 증빙</span>을 담당하는 것이다.
+    </p>
+  </section>
+
+  <!-- 18. Unimplemented features -->
+  <section class="slide">
+    <h2>현재 미구현 기능 — Admin / Onboarding 영역</h2>
+    <p class="muted">데모 1주 스코프에서 잘라낸 영역. 시드 스크립트나 하드코딩으로 대체됨. 본질적으로 <b>B2B 운용사·관리자 책임</b>의 흐름이라 사용자 노출 API보다는 Admin/내부 시스템에 가깝다.</p>
+
+    <div class="grid cols-2" style="margin-top: 12px;">
+      <div class="card">
+        <h3>투자자 Onboarding (Admin)</h3>
+        <p class="muted">현재: <code>prisma/seed.ts</code>에 투자자 3명 + ownershipBp 5000/3000/2000 하드코딩</p>
+        <ul class="tight">
+          <li><span class="pill post">POST</span> <code>/api/investors</code> — 투자자 등록</li>
+          <li><span class="pill post">POST</span> <code>/api/funds/:fundId/investments</code> — 펀드 가입 + 지분(bp) 부여</li>
+          <li><span class="pill" style="background:#1f2a4d;color:var(--accent-2);">PATCH</span> <code>/api/funds/:fundId/investments/:id</code> — 지분 변경</li>
+          <li><span class="pill post">POST</span> <code>.../investments/:id/open-trustline</code> — Trustline 자동 개설</li>
+        </ul>
+        <p class="muted" style="margin-top:8px;">실서비스 시 외부 KYC/AML 시스템과 묶여서 백엔드는 결과만 받는 형태가 자연스러움</p>
+      </div>
+
+      <div class="card">
+        <h3>운영 (Operator) 도구</h3>
+        <ul class="tight">
+          <li><span class="pill post">POST</span> <code>/api/admin/fx-rate</code> — 환율 수동 입력 (현재 1468 demo-fixed)</li>
+          <li>FX 자동 갱신 — cron / 외부 API / XLS-47 온체인 오라클</li>
+          <li>bp 합계 검증 정책 (현재 미검증, 11000 가능)</li>
+          <li>Multi-sig Treasury (현재 single-sig)</li>
+          <li>실제 인증·세션 (현재 JWT stub)</li>
+          <li>XLS-56 Batch atomic 분배 (mainnet 활성 후 마이그레이션)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 14px; border-color: rgba(110,231,183,.4);">
+      <h3 style="color: var(--accent);">관점 정리</h3>
+      <p>StableHedge는 본질적으로 <b>B2B / Admin 백엔드</b>다. "투자자가 가입한다"는 행위는 외부 KYC + 운용사 onboarding 프로세스의 <span class="hl">결과물(Investment row)</span>을 우리 백엔드가 수령하는 모델로 보는 게 자연스럽다. 데모는 그 onboarding 결과를 <span class="hl">시드로 모킹</span>하고, <span class="hl2">분기 분배 · XRPL 정산</span>이라는 코어 가치 흐름에 집중한다.</p>
+    </div>
+
+    <p class="muted" style="margin-top:14px; font-size:13px;">상세 항목은 <code>docs/backend-todo.md</code>에 누적 기록 중.</p>
+  </section>
+
+</div>
+
+<div class="nav">
+  <button class="btn" onclick="go(-1)">◀ Prev</button>
+  <span id="counter">1 / N</span>
+  <button class="btn" onclick="go(1)">Next ▶</button>
+</div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const counter = document.getElementById('counter');
+  const progress = document.getElementById('progress');
+  let idx = 0;
+
+  function drawArrow(ctx, from, to, color = '#93c5fd', label = '', labelDx = 0, labelDy = 0) {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const c1 = { x: from.x + Math.max(40, dx * 0.35), y: from.y };
+    const c2 = { x: to.x - Math.max(40, dx * 0.35), y: to.y };
+
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, to.x, to.y);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    const angle = Math.atan2(to.y - c2.y, to.x - c2.x);
+    const head = 8;
+    ctx.beginPath();
+    ctx.moveTo(to.x, to.y);
+    ctx.lineTo(to.x - head * Math.cos(angle - Math.PI / 6), to.y - head * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(to.x - head * Math.cos(angle + Math.PI / 6), to.y - head * Math.sin(angle + Math.PI / 6));
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    if (label) {
+      const mx = (from.x + to.x) / 2;
+      const my = (from.y + to.y) / 2 - 10;
+      ctx.font = '12px Menlo, Consolas, monospace';
+      const metrics = ctx.measureText(label);
+      ctx.fillStyle = 'rgba(11,16,32,.92)';
+      ctx.fillRect(mx - metrics.width / 2 - 6 + labelDx, my - 11 + labelDy, metrics.width + 12, 16);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(mx - metrics.width / 2 - 6 + labelDx, my - 11 + labelDy, metrics.width + 12, 16);
+      ctx.fillStyle = '#cfd6e6';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, mx + labelDx, my + labelDy);
+    }
+  }
+
+  function point(rect, side, stageRect, offset = 0.5) {
+    if (side === 'right') return { x: rect.right - stageRect.left, y: rect.top - stageRect.top + rect.height * offset };
+    if (side === 'left') return { x: rect.left - stageRect.left, y: rect.top - stageRect.top + rect.height * offset };
+    if (side === 'top') return { x: rect.left - stageRect.left + rect.width * offset, y: rect.top - stageRect.top };
+    return { x: rect.left - stageRect.left + rect.width * offset, y: rect.bottom - stageRect.top };
+  }
+
+  function drawErd() {
+    const stage = document.getElementById('erd-stage');
+    const canvas = document.getElementById('erd-canvas');
+    if (!stage || !canvas) return;
+    const active = stage.closest('.slide');
+    if (!active || !active.classList.contains('active')) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const stageRect = stage.getBoundingClientRect();
+    canvas.width = stageRect.width * dpr;
+    canvas.height = stageRect.height * dpr;
+    canvas.style.width = `${stageRect.width}px`;
+    canvas.style.height = `${stageRect.height}px`;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, stageRect.width, stageRect.height);
+
+    const els = {
+      fund: document.getElementById('erd-fund'),
+      distribution: document.getElementById('erd-distribution'),
+      distributionItem: document.getElementById('erd-distribution-item'),
+      investment: document.getElementById('erd-investment'),
+      investor: document.getElementById('erd-investor'),
+      wallet: document.getElementById('erd-wallet'),
+      token: document.getElementById('erd-token'),
+      xrplTx: document.getElementById('erd-xrpl-transaction'),
+    };
+    if (Object.values(els).some((el) => !el)) return;
+
+    const rects = Object.fromEntries(
+      Object.entries(els).map(([key, el]) => [key, el.getBoundingClientRect()])
+    );
+
+    drawArrow(ctx, point(rects.wallet, 'bottom', stageRect, 0.4), point(rects.investor, 'top', stageRect, 0.42), '#fbbf24', 'FK walletId', 0, -4);
+    drawArrow(ctx, point(rects.wallet, 'right', stageRect, 0.52), point(rects.fund, 'left', stageRect, 0.24), '#fbbf24', 'FK treasury/issuer', 10, -10);
+    drawArrow(ctx, point(rects.investor, 'bottom', stageRect, 0.68), point(rects.investment, 'top', stageRect, 0.32), '#6ee7b7', '1:N');
+    drawArrow(ctx, point(rects.fund, 'left', stageRect, 0.76), point(rects.investment, 'right', stageRect, 0.45), '#93c5fd', '1:N');
+    drawArrow(ctx, point(rects.fund, 'bottom', stageRect, 0.5), point(rects.distribution, 'top', stageRect, 0.5), '#6ee7b7', '1:N');
+    drawArrow(ctx, point(rects.token, 'top', stageRect, 0.5), point(rects.fund, 'bottom', stageRect, 0.74), '#f0abfc', 'FK tokenId', 14, 2);
+    drawArrow(ctx, point(rects.distribution, 'right', stageRect, 0.5), point(rects.distributionItem, 'left', stageRect, 0.4), '#93c5fd', '1:N');
+    drawArrow(ctx, point(rects.investor, 'right', stageRect, 0.46), point(rects.distributionItem, 'left', stageRect, 0.72), '#6ee7b7', 'FK investorId', 0, 16);
+    drawArrow(ctx, point(rects.distribution, 'right', stageRect, 0.82), point(rects.xrplTx, 'left', stageRect, 0.36), '#f87171', 'submit 이후', 0, 18);
+  }
+
+  function render() {
+    slides.forEach((s, i) => s.classList.toggle('active', i === idx));
+    counter.textContent = `${idx + 1} / ${slides.length}`;
+    progress.style.width = `${((idx + 1) / slides.length) * 100}%`;
+    requestAnimationFrame(drawErd);
+  }
+  function go(d) {
+    idx = Math.max(0, Math.min(slides.length - 1, idx + d));
+    render();
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') go(1);
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') go(-1);
+    else if (e.key === 'Home') { idx = 0; render(); }
+    else if (e.key === 'End') { idx = slides.length - 1; render(); }
+    else if (e.key === 'f' || e.key === 'F') {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    }
+  });
+  window.addEventListener('resize', () => requestAnimationFrame(drawErd));
+  render();
+</script>
+</body>
+</html>
