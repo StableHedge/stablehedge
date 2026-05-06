@@ -2,10 +2,11 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": ".",
+    "rootDir": "src",
     "lib": ["ES2022"],
     "types": ["node"],
     "baseUrl": "."
   },
-  "include": ["src/**/*", "prisma/**/*.ts"]
+  "include": ["src/**/*"],
+  "exclude": ["**/*.test.ts", "dist", "node_modules"]
 }
