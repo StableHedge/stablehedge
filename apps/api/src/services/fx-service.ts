@@ -1,6 +1,6 @@
 import { prisma } from '../db/client.js'
 
-// Demo-fixed rate. See docs/backend-todo.md for the planned FX feed integration.
+// Demo-fixed rate. FX feed integration planned — track via GitHub issues.
 const FALLBACK_KRW_PER_USD = 1468
 
 export async function getCurrentKrwPerUsd(): Promise<number> {
