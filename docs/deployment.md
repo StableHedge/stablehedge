@@ -1,335 +1,192 @@
 # Deployment Guide
 
-KFIP 2026 데모용 배포 셋업.
+현재 배포 전략은 `Frontend = Vercel`, `Backend = Render`, `DB = 임시 local/ephemeral` 기준이다.
+이 구성은 KFIP 2026 데모를 빠르게 띄우기 위한 임시안이며, 우선순위는 `Render auto-deploy ON`으로 `main` push마다 자동 배포되게 만드는 것이다.
 
-| 컴포넌트 | 호스팅 | 비용 |
+## 현재 결정
+
+| 컴포넌트 | 호스팅 | 비용/특성 |
 |---|---|---|
-| Frontend (`apps/web`) | Vercel | 무료 |
-| Backend API (`apps/api`) | Northflank (Sandbox) | 무료 |
-| Postgres | Northflank Addon (Free) | 무료 |
+| Frontend (`apps/web`) | Vercel Hobby | 무료 |
+| Backend API (`apps/api`) | Render Free Web Service | 무료, idle 시 spin down 가능 |
+| DB | 임시 local/ephemeral | 재시작·redeploy 시 유실 가능 |
 
-> ✅ **Always-on**: idle sleep 없음. KFIP 시연 직전 cold start 걱정 불필요.
-> ✅ **데이터 영속**: Northflank Postgres addon은 persistent storage 포함.
+주의:
+- Render Free는 idle 후 spin down 될 수 있다.
+- Free web service의 로컬 파일시스템은 영속 스토리지가 아니다.
+- 따라서 현재 DB는 운영용이 아니라 데모용 임시 상태로 취급한다.
+- 추후 `Supabase Postgres`로 분리하는 것을 전제로 한다.
 
 ---
 
-## 1. Backend: Northflank
+## 1. Frontend: Vercel
 
-### 1-1. 가입 및 프로젝트 생성
+### 1-1. 프로젝트 import
 
-1. https://northflank.com → **Sign up with GitHub** (`jyami-kim`)
-2. GitHub 권한에서 `StableHedge/stablehedge` 접근 허용
-3. **Create new project**:
-   - Name: `stablehedge`
-   - Region: `Tokyo` 또는 `Singapore` (한국에서 latency 양호)
-   - Plan: **Sandbox (Free)**
+1. https://vercel.com 에서 GitHub로 로그인
+2. `Add New` → `Project`
+3. 이 레포 import
+4. Root Directory: `apps/web`
 
-> Sandbox 한도: 2 services + 2 databases + 2 cron jobs, 모두 always-on.
+### 1-2. Build 설정
 
-### 1-2. Postgres Addon 추가 (먼저 만들기)
-
-프로젝트 화면에서:
-
-1. **+ Create new** → **Addon** → **PostgreSQL**
-2. 설정:
-   ```
-   Name:       postgres
-   Plan:       nf-compute-20 (Free) 또는 가장 작은 거
-   Version:    PostgreSQL 16
-   Storage:    1 GB
-   ```
-3. Create → 1-2분 후 ready
-4. **Connection details** 탭 열어두기:
-   - **Internal connection URL** 복사 (네트워크 무료, 빠름)
-     ```
-     postgresql://nf_user:<pw>@primary.<addon-id>.<cluster>.local:5432/<db-name>
-     ```
-   - **External connection URL**도 따로 적어두기 (로컬에서 마이그레이션 돌릴 때 필요할 수 있음)
-
-### 1-3. Combined Service (api) 생성
-
-1. **+ Create new** → **Service** → **Combined Service**
-2. **Source**:
-   ```
-   Repository:    StableHedge/stablehedge
-   Branch:        main
-   Build context: /              (모노레포 루트)
-   Auto-deploy:   on push to main
-   ```
-
-3. **Build**:
-   - **Build type**: Buildpack 우선 시도. 실패 시 Dockerfile 폴백 (다음 섹션 참고)
-   - Buildpack이 인식하면 자동, 아니면 **Build command** 직접 입력:
-     ```bash
-     pnpm install --frozen-lockfile && pnpm --filter @stablehedge/shared-types build && pnpm --filter @stablehedge/xrpl-adapter build && pnpm --filter @stablehedge/api db:generate && pnpm --filter @stablehedge/api build
-     ```
-   - **Run command**:
-     ```
-     cd apps/api && pnpm start
-     ```
-
-4. **Resources**:
-   - Plan: `nf-compute-20` (free, 256MB RAM / 0.1 vCPU)
-
-5. **Networking → Public port**:
-   ```
-   Port:     3000
-   Protocol: HTTP
-   Public:   ✓
-   ```
-   → public URL 자동 발급: `https://api--stablehedge--<account>.code.run` 형태
-
-6. **Health check**:
-   ```
-   Path:           /healthz
-   Initial delay:  30s
-   Period:         30s
-   ```
-
-### 1-4. Build 실패 시 — Dockerfile 폴백
-
-Buildpack이 pnpm 모노레포 검출 실패하면 레포 루트에 다음 `Dockerfile` 추가하고 push:
-
-```dockerfile
-FROM node:20-slim AS base
-RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
-
-WORKDIR /app
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
-COPY apps/api/package.json apps/api/
-COPY apps/web/package.json apps/web/
-COPY packages/xrpl-adapter/package.json packages/xrpl-adapter/
-COPY packages/shared-types/package.json packages/shared-types/
-
-RUN pnpm install --frozen-lockfile
-
-COPY . .
-
-RUN pnpm --filter @stablehedge/shared-types build && \
-    pnpm --filter @stablehedge/xrpl-adapter build && \
-    pnpm --filter @stablehedge/api db:generate && \
-    pnpm --filter @stablehedge/api build
-
-EXPOSE 3000
-WORKDIR /app/apps/api
-CMD ["pnpm", "start"]
-```
-
-서비스 설정에서 **Build type: Dockerfile**, **Dockerfile path: `/Dockerfile`** 지정.
-
-### 1-5. 환경변수
-
-Service → **Environment** 탭에 다음 추가 (key=value 형식):
-
-```bash
-NODE_ENV=production
-PORT=3000
-LOG_LEVEL=info
-
-# Postgres — 1-2단계에서 받은 internal URL
-DATABASE_URL=postgresql://nf_user:<pw>@primary.<addon-id>.<cluster>.local:5432/<db-name>
-
-# XRPL
-XRPL_NETWORK=testnet
-XRPL_RPC_URL=wss://s.altnet.rippletest.net:51233
-XRPL_EXPLORER_BASE=https://testnet.xrpl.org
-
-# Token
-TOKEN_CURRENCY_CODE=USD
-TOKEN_DISPLAY_LABEL=RUSD-DEMO
-
-# Wallets — KFIP 직전엔 새로 발급 권장
-ISSUER_SEED=sEdTuSGxPBaoxScV5PWVahetArPipeV
-TREASURY_SEED=sEd7oKDV6vqpcnRLG1pgz3eYUBnzUky
-
-# 새로 생성된 키 (별도 채팅 기록 또는 비밀 관리 도구에서 확인)
-WALLET_ENCRYPTION_KEY=<openssl rand -hex 32 결과>
-JWT_SECRET=<openssl rand -hex 32 결과>
-```
-
-→ Save → 자동 재배포 트리거됨.
-
-### 1-6. Build 모니터링
-
-**Builds** 탭에서 진행 상황 확인 (보통 3-5분).
-
-빌드 성공 → **Deployments** 탭에서 새 deployment running 상태 확인.
-
-### 1-7. 헬스체크
-
-```bash
-curl https://api--stablehedge--<account>.code.run/healthz
-# → {"status":"ok","network":"testnet"}
-```
-
-빈 DB 상태에선 `/api/funds` 같은 엔드포인트가 빈 배열 반환.
-
-### 1-8. 시드 1회 실행
-
-#### 옵션 A: Northflank 대시보드의 컨테이너 Shell
-- Service → **Console** (또는 **Shell**) 탭
-- 컨테이너 안에서:
+- Install Command:
   ```bash
-  cd apps/api
-  pnpm db:seed
-  pnpm scripts:open-trustlines
-  ```
-
-#### 옵션 B: Northflank CLI (로컬에서)
-```bash
-brew install northflank/tap/cli
-northflank login
-northflank exec service \
-  --project stablehedge \
-  --service api \
-  -- bash -c "cd apps/api && pnpm db:seed && pnpm scripts:open-trustlines"
-```
-
-#### 옵션 C: 로컬에서 External URL로 직접 시드
-```bash
-DATABASE_URL=<external-url> pnpm --filter @stablehedge/api db:seed
-DATABASE_URL=<external-url> pnpm --filter @stablehedge/api scripts:open-trustlines
-```
-
----
-
-## 2. Frontend: Vercel
-
-### 2-1. 가입 및 프로젝트 import
-
-1. https://vercel.com → **Sign in with GitHub**
-2. **Add New** → **Project** → `StableHedge/stablehedge` Import
-
-### 2-2. 프로젝트 설정
-
-Vercel이 모노레포 자동 감지 → **Root Directory** 묻는 화면:
-- **Root Directory**: `apps/web`
-- **Framework Preset**: Next.js (자동)
-
-**Build & Output settings** (Override 필요할 수 있음):
-- **Install Command**:
-  ```
   cd ../.. && pnpm install --frozen-lockfile
   ```
-- **Build Command**:
-  ```
+- Build Command:
+  ```bash
   cd ../.. && pnpm --filter @stablehedge/shared-types build && pnpm --filter @stablehedge/web build
   ```
-- **Output Directory**: `.next` (기본)
 
-### 2-3. Environment Variables
-
-```bash
-NEXT_PUBLIC_API_BASE=https://api--stablehedge--<account>.code.run
-```
-
-### 2-4. Deploy
-
-→ 2-3분 후 `https://stablehedge-<id>.vercel.app` 같은 도메인 발급.
-
-### 2-5. 동작 확인
-
-브라우저로 접속 → Overview 페이지에 펀드 목록·투자자 목록 보이면 성공.
-
-안 보이면:
-- Network 탭에서 API 호출 URL이 production URL인지 확인
-- CORS 에러 시 → `apps/api/src/index.ts`의 cors 설정 확인 (`origin: true`라 OK여야 함)
-
----
-
-## 3. 트러블슈팅
-
-### Buildpack 실패: "package not found" 또는 "workspace dependency missing"
-- pnpm workspace dependencies 빌드 순서가 중요
-- 1-4의 Dockerfile 폴백 사용
-
-### Postgres 연결 안 됨
-- internal hostname (`*.local:5432`)인지 확인
-- 같은 region·같은 project인지
-- 비밀번호에 특수문자 있으면 URL encode
-
-### Health check가 unhealthy
-- `Initial delay`가 너무 짧으면 prisma migrate 진행 중에 fail
-- `Initial delay: 60s` 정도로 늘려보기
-- 빌드 로그에서 마이그레이션 정상 적용됐는지 확인
-
-### `prisma migrate deploy` 실패
-- migration 폴더(`apps/api/prisma/migrations`)가 푸시됐는지 확인
-- `DATABASE_URL`이 정확한지
-
-### CORS 에러
-- API의 `apps/api/src/index.ts:30` → `cors({ origin: true })`로 와일드카드인지
-- production에선 Vercel 도메인 명시 권장
-
----
-
-## 4. KFIP 직전 체크리스트
-
-```
-□ Northflank Postgres addon Healthy
-□ Northflank api service Running, /healthz 200 OK
-□ DB 시드 완료 (Fund 1, Investor 3, Investment 3)
-□ 투자자 trustlines 모두 ACTIVE
-□ Treasury 지갑에 IOU 잔액 충분 (>1.5M USDX)
-□ Vercel 프론트 → Overview 페이지에 펀드·투자자 보임
-□ Distribution 생성 → Calculate → Submit 풀 시연 1회 성공
-□ Settlement Monitor 화면 갱신 확인
-□ Investor Statement 화면 갱신 확인
-□ XRPL Explorer 링크 정상 작동
-□ Production용 새 ISSUER/TREASURY 시드 발급 완료 (선택)
-```
-
----
-
-## 5. 운영 정보 기록
-
-배포 후 채울 것:
-
-| 항목 | 값 |
-|---|---|
-| Northflank project URL | `https://app.northflank.com/p/stablehedge` |
-| Northflank api public URL | `https://api--stablehedge--<account>.code.run` |
-| Postgres internal hostname | `primary.<addon-id>.<cluster>.local` |
-| Postgres external hostname | (CLI 시드용) |
-| Issuer address | (운영 시드에서) |
-| Treasury address | (운영 시드에서) |
-| Vercel deployment URL | `https://<...>.vercel.app` |
-| 첫 시드 실행 일시 | |
-
----
-
-## 6. 재배포·재시드 절차
+### 1-3. 환경변수
 
 ```bash
-# 1. 코드 변경 → push → Northflank 자동 재배포 (3-5분)
-git push origin main
-
-# 2. 데이터 손상·초기화가 필요한 경우만 시드 재실행
-northflank exec service \
-  --project stablehedge \
-  --service api \
-  -- bash -c "cd apps/api && pnpm db:seed"
-
-# 3. Vercel은 main push 시 자동 재배포 — 도메인 변동 없음
+NEXT_PUBLIC_API_BASE=https://<render-backend-domain>
 ```
 
 ---
 
-## 7. 비용 및 한도
+## 2. Backend: Render Free
 
-| 자원 | Sandbox 한도 | 우리 사용량 |
-|---|---|---|
-| Services | 2 | 1 (api) |
-| Databases | 2 | 1 (postgres) |
-| Cron jobs | 2 | 0 |
-| Compute | nf-compute-20 (256MB / 0.1 vCPU) | 충분 |
-| Storage | 1 GB postgres | 시드 ~1 MB |
+### 2-1. 왜 Render로 두는가
 
-KFIP 데모 + 데모 후 1-2개월 운영까지 **$0**로 가능.
+현재 API는 단순 요청/응답만 처리하지 않는다.
 
-한도 초과 시점:
-- 트래픽 급증 (드물지만 가능)
-- 데이터 1GB 넘어감 (현재 사용량으론 수백만 트랜잭션 후)
-- 두 번째 service·DB 필요해짐
+- Fastify 서버를 직접 `listen()` 한다.
+- 서버 기동 후 `startLedgerWatcher()`가 XRPL WSS 연결을 유지한다.
 
-→ 그 시점에 paid plan 검토.
+즉, 지금 시점에는 serverless보다 long-running web service가 더 잘 맞는다.
+
+### 2-2. Render 서비스 생성
+
+1. https://render.com 에서 GitHub로 로그인
+2. `New` → `Web Service`
+3. 이 레포 연결
+4. 서비스 설정:
+   - Name: `stablehedge-api`
+   - Region: `Singapore` 또는 `Oregon`
+   - Branch: `main`
+   - Instance Type: `Free`
+   - Root Directory: 비움
+
+### 2-3. Build / Start Command
+
+- Build Command:
+  ```bash
+  pnpm install --frozen-lockfile && pnpm --filter @stablehedge/shared-types build && pnpm --filter @stablehedge/xrpl-adapter build && pnpm --filter @stablehedge/api db:generate && pnpm --filter @stablehedge/api build
+  ```
+
+- Start Command:
+  ```bash
+  cd apps/api && pnpm start
+  ```
+
+현재 `pnpm start`는 `prisma migrate deploy && node dist/index.js`를 수행한다.
+
+### 2-4. Render에서 미리 준비할 값
+
+Render 쪽에서는 아래만 먼저 확보한다.
+
+- GitHub repo 연결
+- `Auto-Deploy: On Commit`
+
+민감한 환경변수 값은 Render 서비스의 `Environment` 탭에 넣고, GitHub에는 두지 않는다.
+
+### 2-5. Health Check
+
+- Path: `/healthz`
+
+이 값은 배포 readiness 확인용이다.
+
+---
+
+## 3. DB 운영 원칙
+
+현재 단계의 DB는 영속성보다 속도를 우선한다.
+
+원칙:
+- 데이터 유실 허용
+- redeploy/restart 시 초기화 가능해야 함
+- 중요한 상태는 seed로 재현 가능해야 함
+- 데모 직전 시드 재투입 절차를 준비해 둔다
+
+권장 절차:
+1. 배포 후 `/healthz` 확인
+2. DB migration 적용 확인
+3. 시드 실행
+4. trustline 개설 스크립트 실행
+5. 데모 시나리오 smoke test
+
+---
+
+## 4. Seed / 복구
+
+서비스 쉘 또는 외부 연결이 가능할 때 아래를 실행한다.
+
+```bash
+pnpm --filter @stablehedge/api db:seed
+pnpm --filter @stablehedge/api scripts:open-trustlines
+```
+
+임시 DB가 비거나 깨졌을 때도 같은 절차로 복구한다.
+
+---
+
+## 5. 이후 목표: Serverless 분리
+
+현재 Render 배포는 최종 구조가 아니다.
+목표는 long-running 의존성을 줄이고 backend를 serverless에 가까운 shape로 나누는 것이다.
+
+우선순위:
+1. `ledger-watcher`의 필요성 재검증
+2. watcher를 cron polling 또는 별도 worker로 분리
+3. API 진입점을 `listen()` 서버에서 함수형 핸들러 친화 구조로 재구성
+4. DB를 Supabase Postgres로 분리
+5. 오래 걸리는 작업은 `submit 요청`과 `실제 처리`를 비동기 분리
+
+이 과정을 거치면 최종적으로는:
+- Web: Vercel
+- Read-heavy API: serverless
+- Long-running or async job: 별도 worker
+- DB: Supabase
+
+구조로 이동할 수 있다.
+
+---
+
+## 6. 현실적인 해석
+
+현재 Render 선택은 아래 전제를 둔 임시안이다.
+
+- 비용 0원 우선
+- 데모용
+- 일부 cold start 감수
+- DB 영속성 미보장 감수
+- 이후 Supabase 및 serverless 분리 예정
+
+이 전제가 깨지면 다음 우선순위는 `DB 외부 분리`다.
+
+---
+
+## 7. 트러블슈팅
+
+### 배포는 성공했는데 첫 응답이 느림
+
+- Render Free cold start 가능성
+- keep-alive cron이 누락됐는지 확인
+
+### DB가 비어 있음
+
+- restart 또는 redeploy로 임시 DB 상태 유실 가능
+- seed 다시 실행
+
+### `/submit` 이후 상태 반영이 애매함
+
+- 현재는 long-running watcher 의존이 일부 있음
+- 재현되면 watcher 의존 제거 또는 polling 대체를 우선 검토
+
+### build 실패
+
+- workspace 패키지 빌드 순서 확인
+- `@stablehedge/shared-types`와 `@stablehedge/xrpl-adapter`가 먼저 build되어야 함

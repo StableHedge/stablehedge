@@ -67,6 +67,17 @@
 
 ## 아키텍처 / 인프라
 
+- [ ] `[보강필요]` **현재 배포 기준선 고정: Render 우선, 최종 목표는 serverless 분리**
+  - **현재 결정**: `frontend = Vercel`, `backend = Render Free`, `DB = 임시 local/ephemeral`로 먼저 간다.
+  - **이유**: 현재 `apps/api`는 Fastify long-running 서버 + `ledger-watcher` 구조라 바로 serverless에 싣기보다 Render류가 안전하다.
+  - **단서**: 이 구성은 운영형이 아니라 데모형이다. DB 영속성과 cold start는 감수한다.
+  - **우선순위**: 아키텍처 리팩터링 전에 `Render auto-deploy ON`, `main push`, `Render Environment` 기반 민감정보 관리부터 고정한다.
+  - **다음 단계 목표**:
+    - (A) DB를 Supabase로 외부 분리
+    - (B) watcher를 제거하거나 별도 worker / cron polling으로 분리
+    - (C) API를 함수형 진입점 중심으로 재구성
+  - **영향**: 배포 문서, API 진입점, XRPL 상태 동기화 방식 전체
+
 - [ ] `[리서치필요]` **`ledger-watcher`가 정말 필요한지 검증**
   - **현황**: `apps/api/src/services/ledger-watcher.ts`는 서버 부팅 시 XRPL WSS persistent connection을 열어둠. 그런데 `/submit`의 `submitAndWait`이 이미 검증된 결과를 반환하고 DB까지 동기 업데이트함 (`distribution.ts:90`). 이 watcher는 사실상 **자가 수복(self-healing) 보험** 역할.
   - **검증 항목**:
@@ -79,10 +90,23 @@
     - 부분 필요 → Cron-triggered 폴링으로 대체
   - **영향**: 전체 배포 아키텍처 결정에 직접 영향. KFIP 후 Cloudflare 마이그레이션 검토 시 필수 선결 과제.
 
-- [ ] `[보강필요]` **Railway 배포용 코드 정비**
-  - `apps/api/package.json`의 `start`에 `prisma migrate deploy` 포함
-  - `prisma/schema.prisma`에 `binaryTargets = ["native", "linux-musl-openssl-3.0.x"]`
-  - Production용 시드/키 별도 발급 (현재 testnet 시드 그대로 쓰면 안 됨)
+- [ ] `[보강필요]` **API 부트스트랩을 serverless-friendly shape로 재구성**
+  - **현황**: `apps/api/src/index.ts`가 앱 생성, 라우트 등록, `listen()`, watcher 시작을 한 파일에서 모두 처리한다.
+  - **문제**: 이 구조는 Render에서는 괜찮지만, 이후 Vercel/Cloudflare/Functions 계열로 분리하기 어렵다.
+  - **목표 구조**:
+    - `createApp()` 또는 `buildServer()` 팩토리 분리
+    - `listen()`은 런타임 전용 엔트리포인트로 축소
+    - watcher 시작은 별도 부트 경로 또는 worker로 분리
+  - **영향**: API 진입점, 테스트, 배포 어댑터 작성 방식
+
+- [ ] `[보강필요]` **장시간 작업을 요청-응답과 분리**
+  - **현황**: `/api/distributions/:id/submit`가 XRPL 제출과 상태 반영을 한 요청에서 모두 처리한다.
+  - **문제**: 지금은 Render에서 버티더라도 serverless 전환 시 함수 시간 제한과 재시도 설계에 취약하다.
+  - **목표 구조**:
+    - `submit 요청`은 job 생성만 수행
+    - 실제 XRPL 전송/검증은 비동기 worker가 처리
+    - 클라이언트는 polling 또는 status refresh로 결과 반영
+  - **영향**: distributions route, distribution-engine, UI 액션 흐름
 
 ## XRPL 운영
 
