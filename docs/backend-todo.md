@@ -65,6 +65,25 @@
 
 ---
 
+## 아키텍처 / 인프라
+
+- [ ] `[리서치필요]` **`ledger-watcher`가 정말 필요한지 검증**
+  - **현황**: `apps/api/src/services/ledger-watcher.ts`는 서버 부팅 시 XRPL WSS persistent connection을 열어둠. 그런데 `/submit`의 `submitAndWait`이 이미 검증된 결과를 반환하고 DB까지 동기 업데이트함 (`distribution.ts:90`). 이 watcher는 사실상 **자가 수복(self-healing) 보험** 역할.
+  - **검증 항목**:
+    - (a) `/submit` 응답 누락 시나리오가 실제로 얼마나 자주 발생하나 (Network drop, 서버 재시작 중)
+    - (b) Treasury로 외부 입금이 들어올 가능성 (redemption 시나리오 추가 시)
+    - (c) Cron-triggered 폴링(`account_tx` REST 호출)으로 동등 기능 가능 여부
+  - **결론에 따라 분기**:
+    - 필요 ❌ → 코드 삭제 → **풀-serverless 배포 가능**(Cloudflare Pages Functions 등)
+    - 필요 ✅ → 현재 long-running 환경 유지 (Render/Railway)
+    - 부분 필요 → Cron-triggered 폴링으로 대체
+  - **영향**: 전체 배포 아키텍처 결정에 직접 영향. KFIP 후 Cloudflare 마이그레이션 검토 시 필수 선결 과제.
+
+- [ ] `[보강필요]` **Railway 배포용 코드 정비**
+  - `apps/api/package.json`의 `start`에 `prisma migrate deploy` 포함
+  - `prisma/schema.prisma`에 `binaryTargets = ["native", "linux-musl-openssl-3.0.x"]`
+  - Production용 시드/키 별도 발급 (현재 testnet 시드 그대로 쓰면 안 됨)
+
 ## XRPL 운영
 
 - [ ] `[프로토타입 단순화]` **Treasury 단일 키 (multi-sig 미적용)**
