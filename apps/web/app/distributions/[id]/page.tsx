@@ -37,7 +37,10 @@ export default async function DistributionDetail({ params }: { params: { id: str
   const siblingDists = await api.distributions(d.fund.id).catch(() => [])
 
   const total = Number(d.totalDistributableUsd)
-  const treasuryBalanceLabel = `${total.toLocaleString()} ${d.fund.token.displayLabel}`
+  const tokenLabel = d.fund.token.displayLabel
+  const fundingLabel = d.funding
+    ? `${Number(d.funding.treasuryBalanceUsd).toLocaleString()} ${tokenLabel}`
+    : '—'
 
   const periodOptions = siblingDists.map((dist) => ({
     id: dist.id,
@@ -129,6 +132,7 @@ export default async function DistributionDetail({ params }: { params: { id: str
           investorCount={d.items.length}
           totalAmount={total}
           tokenLabel={d.fund.token.displayLabel}
+          funding={d.funding}
         />
       </div>
 
@@ -170,8 +174,8 @@ export default async function DistributionDetail({ params }: { params: { id: str
         />
         <KpiCard
           label="Treasury Balance"
-          value={treasuryBalanceLabel}
-          sub="Issued USD Stablecoin"
+          value={fundingLabel}
+          sub="Live from XRPL trustline"
           icon={<Landmark className="w-5 h-5" />}
           accent="info"
         />
@@ -191,6 +195,17 @@ export default async function DistributionDetail({ params }: { params: { id: str
           />
         )}
       </div>
+
+      {d.funding && d.items.length > 0 && (
+        <FundingStrip
+          required={d.funding.totalRequiredUsd}
+          balance={d.funding.treasuryBalanceUsd}
+          shortfall={d.funding.shortfallUsd}
+          ready={d.funding.readyToSubmit}
+          trustlineExists={d.funding.trustlineExists}
+          token={tokenLabel}
+        />
+      )}
 
       <section className="bg-white rounded-lg border p-6">
         <InvestorTable items={d.items} tokenLabel={d.fund.token.displayLabel} />
@@ -282,3 +297,52 @@ function KpiCard({
   )
 }
 
+// ── Funding strip ──────────────────────────────────────────────────────────────
+
+function FundingStrip({
+  required,
+  balance,
+  shortfall,
+  ready,
+  trustlineExists,
+  token,
+}: {
+  required: string
+  balance: string
+  shortfall: string
+  ready: boolean
+  trustlineExists: boolean
+  token: string
+}) {
+  const tone = ready
+    ? 'border-emerald-300 bg-emerald-50'
+    : !trustlineExists
+      ? 'border-rose-300 bg-rose-50'
+      : 'border-amber-300 bg-amber-50'
+  const headline = ready
+    ? `Treasury funded — ready to submit`
+    : !trustlineExists
+      ? `Treasury trustline missing — run setup-issuer`
+      : `Treasury short by ${Number(shortfall).toLocaleString()} ${token} — fund treasury before submit`
+  return (
+    <section className={`rounded-lg border p-4 ${tone}`}>
+      <div className="flex items-center justify-between gap-6 text-sm">
+        <div className="font-medium">{headline}</div>
+        <div className="flex gap-6 text-xs text-slate-700">
+          <div>
+            <span className="text-slate-500">Required: </span>
+            <span className="font-semibold">{Number(required).toLocaleString()} {token}</span>
+          </div>
+          <div>
+            <span className="text-slate-500">Treasury balance: </span>
+            <span className="font-semibold">{Number(balance).toLocaleString()} {token}</span>
+          </div>
+          <div>
+            <span className="text-slate-500">Shortfall: </span>
+            <span className="font-semibold">{Number(shortfall).toLocaleString()} {token}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
