@@ -123,7 +123,13 @@ export default async function DistributionDetail({ params }: { params: { id: str
           </div>
         </div>
 
-        <ActionButtons id={d.id} status={d.status} />
+        <ActionButtons
+          id={d.id}
+          status={d.status}
+          investorCount={d.items.length}
+          totalAmount={total}
+          tokenLabel={d.fund.token.displayLabel}
+        />
       </div>
 
       {/* ── KPI Cards ── */}
