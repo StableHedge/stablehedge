@@ -1,14 +1,7 @@
 import { api } from '@/lib/api'
+import { SettlementFlow } from './settlement-flow'
 
 export const dynamic = 'force-dynamic'
-
-const STATUS_DOT: Record<string, string> = {
-  PREPARED: 'bg-sky-300',
-  SUBMITTED: 'bg-blue-500',
-  VALIDATED: 'bg-emerald-500',
-  REFLECTED: 'bg-emerald-500',
-  FAILED: 'bg-rose-500',
-}
 
 export default async function SettlementMonitor({ params }: { params: { fundId: string } }) {
   const m = await api.settlementMonitor(params.fundId)
@@ -45,20 +38,7 @@ export default async function SettlementMonitor({ params }: { params: { fundId: 
       <div className="grid grid-cols-3 gap-4">
         <section className="col-span-2 bg-white rounded-lg border p-6">
           <h2 className="text-lg font-semibold mb-4">XRPL Settlement Flow</h2>
-          <div className="flex items-center justify-between text-sm">
-            {[
-              { step: '1. Payment Prepared', status: 'PREPARED' },
-              { step: '2. Submitted to XRPL', status: 'SUBMITTED' },
-              { step: '3. Validated in Ledger', status: 'VALIDATED' },
-              { step: '4. Reflected in Report', status: 'REFLECTED' },
-            ].map((s, i) => (
-              <div key={i} className="flex flex-col items-center gap-1">
-                <div className={`w-3 h-3 rounded-full ${STATUS_DOT[s.status] ?? 'bg-slate-300'}`} />
-                <div className="text-center">{s.step}</div>
-                <div className="text-xs text-slate-500">{s.status}</div>
-              </div>
-            ))}
-          </div>
+          <SettlementFlow status={m.summary.latestTransactionStatus?.status} />
         </section>
 
         <section className="bg-white rounded-lg border p-6">
