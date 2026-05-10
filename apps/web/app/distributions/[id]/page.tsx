@@ -1,7 +1,21 @@
 import Link from 'next/link'
+import {
+  Info,
+  CircleDollarSign,
+  Coins,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  FileText,
+  Wallet,
+  Landmark,
+  Users,
+  ArrowLeftRight,
+} from 'lucide-react'
 import { api } from '@/lib/api'
 import { ActionButtons } from './action-buttons'
 import { PeriodSelector } from './period-selector'
+import { CopyAddress } from './copy-address'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,18 +83,13 @@ export default async function DistributionDetail({ params }: { params: { id: str
           <div className="flex gap-2 mt-3 text-sm flex-wrap">
             {/* Token badge */}
             <span className="px-3 py-1.5 rounded-full border border-sky-200 bg-sky-50 text-sky-700 flex items-center gap-1.5 font-medium">
-              <svg className="w-4 h-4 text-sky-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="9" />
-                <text x="12" y="16" textAnchor="middle" fontSize="13" fill="currentColor" stroke="none" fontWeight="700">
-                  $
-                </text>
-              </svg>
+              <CircleDollarSign className="w-4 h-4" />
               {d.fund.token.displayLabel}
             </span>
 
             {/* Network badge */}
             <span className="px-3 py-1.5 rounded-full border border-sky-200 bg-sky-50 text-sky-700 flex items-center gap-1.5 font-medium">
-              <svg className="w-4 h-4 text-sky-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="6" cy="12" r="2" />
                 <circle cx="18" cy="6" r="2" />
                 <circle cx="18" cy="18" r="2" />
@@ -123,21 +132,65 @@ export default async function DistributionDetail({ params }: { params: { id: str
         <ActionButtons id={d.id} status={d.status} />
       </div>
 
-      <div className="py-3">
-        <div className="grid grid-cols-4 gap-4">
-          <Card label="Deal Information" value={d.fund.name} />
-          <Card label="Total Distributable Amount" value={`$${total.toLocaleString()}`} />
-          <Card label="Payout Token" value={d.fund.token.displayLabel} sub={`on XRPL ${d.fund.network}`} />
-          <Card label="Payout Status" value={d.status} sub={d.status === 'READY' ? 'Ready to submit payment' : ''} />
-          <Card label="Treasury Wallet" value={short(d.fund.treasuryAddress)} mono />
-          <Card label="Treasury Balance" value={treasuryBalanceLabel} sub="Issued USD Stablecoin" />
-          <Card label="Investor Count" value={String(d.items.length)} sub="Investors" />
-          {d.fxReferenceRateKrwPerUsd && (
-            <Card label="FX Reference (KRW/USD)" value={`${Number(d.fxReferenceRateKrwPerUsd).toLocaleString()} KRW/USD`} />
-         )}
-        </div>
-      </div>        
-      
+      {/* ── KPI Cards ── */}
+      <div className="grid grid-cols-4 gap-4">
+        <KpiCard
+          label="Deal Information"
+          value={d.fund.name}
+          icon={<Info className="w-5 h-5" />}
+          accent="neutral"
+        />
+        <KpiCard
+          label="Total Distributable Amount"
+          value={`$${total.toLocaleString()}`}
+          sub="USD"
+          icon={<CircleDollarSign className="w-5 h-5" />}
+          accent="info"
+        />
+        <KpiCard
+          label="Payout Token"
+          value={d.fund.token.displayLabel}
+          sub={`on XRPL ${d.fund.network}`}
+          icon={<Coins className="w-5 h-5" />}
+          accent="info"
+        />
+        <KpiCard
+          label="Payout Status"
+          value={d.status}
+          sub={STATUS_SUB[d.status]}
+          icon={<StatusIcon status={d.status} />}
+          accent={STATUS_ACCENT[d.status] ?? 'neutral'}
+          pill
+        />
+        <KpiCard
+          label="Treasury Wallet"
+          valueNode={<CopyAddress address={d.fund.treasuryAddress} />}
+          icon={<Wallet className="w-5 h-5" />}
+          accent="neutral"
+        />
+        <KpiCard
+          label="Treasury Balance"
+          value={treasuryBalanceLabel}
+          sub="Issued USD Stablecoin"
+          icon={<Landmark className="w-5 h-5" />}
+          accent="info"
+        />
+        <KpiCard
+          label="Investor Count"
+          value={String(d.items.length)}
+          sub="Investors"
+          icon={<Users className="w-5 h-5" />}
+          accent="neutral"
+        />
+        {d.fxReferenceRateKrwPerUsd && (
+          <KpiCard
+            label="Settlement FX Rate"
+            value={`${Number(d.fxReferenceRateKrwPerUsd).toLocaleString()} KRW/USD`}
+            icon={<ArrowLeftRight className="w-5 h-5" />}
+            accent="warning"
+          />
+        )}
+      </div>
 
       <section className="bg-white rounded-lg border p-6">
         <h2 className="text-lg font-semibold mb-1">Investor Distribution</h2>
@@ -190,15 +243,90 @@ export default async function DistributionDetail({ params }: { params: { id: str
   )
 }
 
-function Card({ label, value, sub, mono }: { label: string; value: string; sub?: string; mono?: boolean }) {
+// ── Status helpers ─────────────────────────────────────────────────────────────
+
+type Accent = 'neutral' | 'info' | 'success' | 'warning' | 'error'
+
+const STATUS_ACCENT: Record<string, Accent> = {
+  DRAFT:     'neutral',
+  READY:     'success',
+  SUBMITTED: 'info',
+  SETTLED:   'success',
+  FAILED:    'error',
+}
+
+const STATUS_SUB: Record<string, string> = {
+  DRAFT:     'Awaiting calculation',
+  READY:     'Ready to submit payment',
+  SUBMITTED: 'Submitted to XRPL',
+  SETTLED:   'Settled on-chain',
+  FAILED:    'Payment failed',
+}
+
+function StatusIcon({ status }: { status: string }) {
+  if (status === 'READY' || status === 'SETTLED') return <CheckCircle2 className="w-5 h-5" />
+  if (status === 'FAILED')                        return <XCircle className="w-5 h-5" />
+  if (status === 'SUBMITTED')                     return <Clock className="w-5 h-5" />
+  return <FileText className="w-5 h-5" />
+}
+
+// ── KPI Card ───────────────────────────────────────────────────────────────────
+
+const ACCENT_STYLES: Record<Accent, { iconBg: string; pillBg: string }> = {
+  neutral: { iconBg: 'bg-slate-100 text-slate-500',    pillBg: 'bg-slate-100 text-slate-700' },
+  info:    { iconBg: 'bg-sky-50 text-sky-600',         pillBg: 'bg-sky-100 text-sky-700' },
+  success: { iconBg: 'bg-emerald-50 text-emerald-600', pillBg: 'bg-emerald-100 text-emerald-700' },
+  warning: { iconBg: 'bg-amber-50 text-amber-600',     pillBg: 'bg-amber-100 text-amber-700' },
+  error:   { iconBg: 'bg-rose-50 text-rose-600',       pillBg: 'bg-rose-100 text-rose-700' },
+}
+
+function KpiCard({
+  label,
+  value,
+  valueNode,
+  sub,
+  icon,
+  accent = 'neutral',
+  pill = false,
+}: {
+  label: string
+  value?: string
+  valueNode?: React.ReactNode
+  sub?: string
+  icon: React.ReactNode
+  accent?: Accent
+  pill?: boolean
+}) {
+  const { iconBg, pillBg } = ACCENT_STYLES[accent]
+
   return (
-    <div className="bg-white rounded-lg border p-4">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className={`text-lg font-semibold mt-1 ${mono ? 'font-mono' : ''}`}>{value}</div>
-      {sub && <div className="text-xs text-slate-500 mt-1">{sub}</div>}
+    <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 flex items-start gap-4">
+      {/* Icon */}
+      <span className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg}`}>
+        {icon}
+      </span>
+
+      {/* Text stack — all aligned to the same left edge */}
+      <div className="flex flex-col min-w-0 pt-0.5">
+        <span className="text-xs font-medium text-slate-500">{label}</span>
+
+        {valueNode ? (
+          <div className="mt-1.5">{valueNode}</div>
+        ) : pill && value ? (
+          <span className={`inline-flex self-start mt-1.5 px-3 py-1 rounded-full text-sm font-semibold ${pillBg}`}>
+            {value}
+          </span>
+        ) : (
+          <p className="mt-1.5 text-xl font-bold text-slate-900 leading-snug">{value}</p>
+        )}
+
+        {sub && <p className="text-xs text-slate-400 mt-1">{sub}</p>}
+      </div>
     </div>
   )
 }
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
 
 function short(addr: string): string {
   if (addr.length <= 14) return addr
