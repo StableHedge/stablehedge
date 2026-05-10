@@ -123,7 +123,7 @@ export function SettlementFlow({ status }: { status: string | null | undefined }
       </div>
 
       {/* Status legend */}
-      <div className="mt-5 pt-4 border-t flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-slate-500">
+      <div className="mt-8 pt-4 border-t flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-slate-500">
         <span className="font-medium text-slate-600">Status Legend:</span>
         <LegendDot color="bg-emerald-500" label="Completed" />
         <LegendDot color="bg-sky-500"     label="Current"   />
