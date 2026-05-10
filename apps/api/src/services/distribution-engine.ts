@@ -1,4 +1,6 @@
+import { Prisma } from '@prisma/client'
 import {
+  getTrustlineBalance,
   submitDistributionPayments,
   type DistributionPayment,
 } from '@stablehedge/xrpl-adapter'
@@ -9,6 +11,69 @@ import {
   computeDistributionAmounts,
   parseDestinationTagFromExternalId,
 } from './distribution-math.js'
+
+const D = (n: Prisma.Decimal | number | string) => new Prisma.Decimal(n)
+
+export interface DistributionFundingStatus {
+  totalRequiredUsd: string
+  treasuryBalanceUsd: string
+  shortfallUsd: string
+  readyToSubmit: boolean
+  trustlineExists: boolean
+}
+
+/**
+ * Reads the distribution items + Treasury trustline balance and decides
+ * whether Submit can run safely. Used by:
+ *   - GET /api/distributions/:id  (UI shows badge)
+ *   - POST /api/distributions/:id/calculate  (response hint)
+ *   - POST /api/distributions/:id/submit  (hard guard)
+ */
+export async function getDistributionFundingStatus(
+  distributionId: string,
+): Promise<DistributionFundingStatus> {
+  const dist = await prisma.distribution.findUniqueOrThrow({
+    where: { id: distributionId },
+    include: {
+      fund: { include: { token: true } },
+      items: true,
+    },
+  })
+
+  const totalRequired = dist.items.reduce(
+    (sum, it) => sum.add(D(it.amountUsd)),
+    D(0),
+  )
+
+  if (totalRequired.eq(0)) {
+    return {
+      totalRequiredUsd: '0',
+      treasuryBalanceUsd: '0',
+      shortfallUsd: '0',
+      readyToSubmit: false,
+      trustlineExists: false,
+    }
+  }
+
+  const trustline = await getTrustlineBalance({
+    rpcUrl: config.XRPL_RPC_URL,
+    holderAddress: dist.fund.treasuryAddress,
+    issuerAddress: dist.fund.issuerAddress,
+    currencyCode: dist.fund.token.currencyCode,
+  })
+
+  const balance = D(trustline.balance)
+  const shortfall = totalRequired.sub(balance)
+  const shortfallPositive = shortfall.gt(0) ? shortfall : D(0)
+
+  return {
+    totalRequiredUsd: totalRequired.toString(),
+    treasuryBalanceUsd: balance.toString(),
+    shortfallUsd: shortfallPositive.toString(),
+    readyToSubmit: trustline.exists && shortfall.lte(0),
+    trustlineExists: trustline.exists,
+  }
+}
 
 /**
  * Backs the "Calculate Distribution" button in Deal Distribution Dashboard.
@@ -95,6 +160,16 @@ export async function submitDistribution(distributionId: string) {
   }
   if (dist.items.length === 0) {
     throw new Error('Distribution has no items; run /calculate first')
+  }
+
+  const funding = await getDistributionFundingStatus(distributionId)
+  if (!funding.trustlineExists) {
+    throw new Error('Treasury trustline missing; run setup-issuer first')
+  }
+  if (!funding.readyToSubmit) {
+    throw new Error(
+      `Treasury balance ${funding.treasuryBalanceUsd} is below required ${funding.totalRequiredUsd}; fund treasury with ${funding.shortfallUsd} more before submitting`,
+    )
   }
 
   const treasurySeed = decryptSeed(dist.fund.treasuryWallet.encryptedSeed)

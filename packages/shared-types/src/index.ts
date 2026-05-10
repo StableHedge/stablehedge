@@ -15,6 +15,14 @@ export interface TokenView {
 
 // =============== Deal Distribution Dashboard ===============
 
+export interface DistributionFundingView {
+  totalRequiredUsd: string
+  treasuryBalanceUsd: string
+  shortfallUsd: string
+  readyToSubmit: boolean
+  trustlineExists: boolean
+}
+
 export interface DealDistributionView {
   id: string
   fund: {
@@ -33,6 +41,7 @@ export interface DealDistributionView {
   settledAt?: string | null
   items: InvestorDistributionItem[]
   explorerBase: string
+  funding: DistributionFundingView | null
 }
 
 export interface InvestorDistributionItem {

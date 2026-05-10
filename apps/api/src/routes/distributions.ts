@@ -4,6 +4,7 @@ import { prisma } from '../db/client.js'
 import { config } from '../config.js'
 import {
   calculateDistribution,
+  getDistributionFundingStatus,
   submitDistribution,
 } from '../services/distribution-engine.js'
 import { getCurrentKrwPerUsd } from '../services/fx-service.js'
@@ -107,6 +108,13 @@ export const distributionRoutes: FastifyPluginAsyncZod = async (app) => {
         investments.map((iv) => [iv.investorId, iv.trustlineStatus] as const),
       )
 
+      // Funding status (treasury balance vs total required) — only meaningful
+      // once items exist (READY+). For DRAFT we skip the XRPL hit.
+      const funding =
+        dist.items.length > 0
+          ? await getDistributionFundingStatus(dist.id).catch(() => null)
+          : null
+
       return {
         id: dist.id,
         fund: {
@@ -149,6 +157,7 @@ export const distributionRoutes: FastifyPluginAsyncZod = async (app) => {
             : null,
         })),
         explorerBase: config.XRPL_EXPLORER_BASE,
+        funding,
       }
     },
   )
@@ -164,11 +173,13 @@ export const distributionRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (req) => {
       const result = await calculateDistribution(req.params.id)
+      const funding = await getDistributionFundingStatus(result.id).catch(() => null)
       return {
         id: result.id,
         status: result.status,
         itemCount: result.items.length,
         calculatedAt: result.calculatedAt,
+        funding,
       }
     },
   )

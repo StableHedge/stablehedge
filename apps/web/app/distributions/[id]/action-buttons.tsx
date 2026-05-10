@@ -3,6 +3,7 @@
 import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
+import type { DistributionFundingView } from '@stablehedge/shared-types'
 
 function Spinner() {
   return (
@@ -171,12 +172,14 @@ export function ActionButtons({
   investorCount,
   totalAmount,
   tokenLabel,
+  funding,
 }: {
   id: string
   status: string
   investorCount: number
   totalAmount: number
   tokenLabel: string
+  funding: DistributionFundingView | null
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -212,7 +215,19 @@ export function ActionButtons({
   }
 
   const canCalculate = status === 'DRAFT' || status === 'READY'
-  const canSubmit = status === 'READY'
+  const fundingReady = funding ? funding.readyToSubmit : false
+  const canSubmit = status === 'READY' && fundingReady
+
+  const submitDisabledReason =
+    status !== 'READY'
+      ? `Status must be READY (now ${status})`
+      : !funding
+        ? 'Treasury funding status unknown'
+        : !funding.trustlineExists
+          ? 'Treasury trustline missing'
+          : !funding.readyToSubmit
+            ? `Treasury short by ${Number(funding.shortfallUsd).toLocaleString()} ${tokenLabel} — fund treasury before submitting`
+            : null
 
   return (
     <>
@@ -262,6 +277,7 @@ export function ActionButtons({
             type="button"
             onClick={() => setShowConfirm(true)}
             disabled={!canSubmit || busy !== null}
+            title={submitDisabledReason ?? 'Submit XRPL Payment'}
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-teal-600 text-white text-sm disabled:opacity-50 hover:bg-teal-700 transition-colors focus:outline-none focus:ring-2 focus:ring-teal-400"
           >
             <svg
@@ -280,10 +296,13 @@ export function ActionButtons({
             Submit XRPL Payment
           </button>
         </div>
-        
-        <div className="min-h-4 text-xs">
-          {isPending && <p className="text-xs text-slate-500">Refreshing...</p>}
-          {error && <p className="text-xs text-rose-600 max-w-md">{error}</p>}
+
+        <div className="min-h-4 text-xs space-y-0.5 text-right">
+          {!canSubmit && submitDisabledReason && (
+            <p className="text-amber-600 max-w-md">{submitDisabledReason}</p>
+          )}
+          {isPending && <p className="text-slate-500">Refreshing...</p>}
+          {error && <p className="text-rose-600 max-w-md">{error}</p>}
         </div>
       </div>
     </>
