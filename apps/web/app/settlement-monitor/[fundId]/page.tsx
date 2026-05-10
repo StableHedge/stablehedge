@@ -1,5 +1,7 @@
 import { api } from '@/lib/api'
 import { SettlementFlow } from './settlement-flow'
+import { KpiCard, WalletKpiCard, StatusKpiCard } from './kpi-cards'
+import { TreasuryBalanceCard } from './treasury-balance-card'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,99 +10,164 @@ export default async function SettlementMonitor({ params }: { params: { fundId: 
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div>
-        <h1 className="text-3xl font-semibold">XRPL Settlement Monitor</h1>
-        <div className="text-blue-600 font-medium">{m.fund.name}</div>
+        <h1 className="text-3xl font-semibold text-slate-900">XRPL Settlement Monitor</h1>
+        <p className="text-m font-medium text-sky-600 mt-0.5">{m.fund.name}</p>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
-        <Card label="Treasury Wallet" value={short(m.treasuryWallet)} mono sub="투자자에게 토큰 지급" />
-        <Card label="Issuer Wallet" value={short(m.issuerWallet)} mono sub="토큰 발행 지갑" />
-        <Card label="Token" value={m.token.displayLabel} />
-        <Card label="Network" value={`XRPL ${m.fund.network}`} />
+      {/*KPI Card*/}
+      <div className="space-y-4">
+        {/* Row 1: Wallet + Token + Network */}
+        <div className="grid grid-cols-4 gap-4">
+          <WalletKpiCard
+            label="Treasury Wallet"
+            address={m.treasuryWallet}
+            sub="Investor payout wallet"
+            iconName="wallet"
+            iconBg="bg-slate-100"
+            iconColor="text-slate-500"
+          />
+          <WalletKpiCard
+            label="Issuer Wallet"
+            address={m.issuerWallet}
+            sub="Token issuer wallet"
+            iconName="wallet"
+            iconBg="bg-slate-100"
+            iconColor="text-slate-500"
+          />
+          <KpiCard
+            label="Token"
+            value={m.token.displayLabel}
+            iconName="coins"
+            iconBg="bg-slate-100"
+            iconColor="text-slate-500"
+          />
+          <KpiCard
+            label="Network"
+            value={`XRPL ${m.fund.network}`}
+            iconName="globe"
+            iconBg="bg-slate-100"
+            iconColor="text-slate-500"
+            valueColor={
+              m.fund.network.toLowerCase().includes('testnet')
+                ? 'text-sky-600'
+                : 'text-emerald-700'
+            }
+          />
+        </div>
+
+        {/* Row 2: Metrics */}
+        <div className="grid grid-cols-4 gap-4">
+          <KpiCard
+            label="Total Issued"
+            value={fmt(m.summary.totalIssued)}
+            sub={m.token.displayLabel}
+            iconName="database"
+            iconBg="bg-sky-50"
+            iconColor="text-sky-600"
+          />
+          <KpiCard
+            label="Treasury Balance"
+            value={fmt(m.summary.treasuryBalance)}
+            sub={m.token.displayLabel}
+            iconName="landmark"
+            iconBg="bg-sky-50"
+            iconColor="text-sky-600"
+          />
+          <KpiCard
+            label="Investor Balances (Total)"
+            value={fmt(m.summary.investorBalancesTotal)}
+            sub={m.token.displayLabel}
+            iconName="users"
+            iconBg="bg-slate-100"
+            iconColor="text-slate-500"
+          />
+          <StatusKpiCard
+            status={m.summary.latestTransactionStatus?.status}
+            ledgerIndex={m.summary.latestTransactionStatus?.ledgerIndex}
+          />
+        </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
-        <Card label="Total Issued" value={fmt(m.summary.totalIssued)} sub={m.token.displayLabel} />
-        <Card label="Treasury Balance" value={fmt(m.summary.treasuryBalance)} sub={m.token.displayLabel} />
-        <Card label="Investor Balances (Total)" value={fmt(m.summary.investorBalancesTotal)} sub={m.token.displayLabel} />
-        <Card
-          label="Latest Transaction Status"
-          value={m.summary.latestTransactionStatus?.status ?? '—'}
-          sub={
-            m.summary.latestTransactionStatus?.ledgerIndex
-              ? `Ledger #${m.summary.latestTransactionStatus.ledgerIndex.toLocaleString()}`
-              : ''
-          }
-        />
-      </div>
-
-      <div className="grid grid-cols-3 gap-4">
-        <section className="col-span-2 bg-white rounded-lg border p-6">
-          <h2 className="text-lg font-semibold mb-4">XRPL Settlement Flow</h2>
+      {/* Settlement Flow + Treasury Balance */}
+      <div className="grid grid-cols-3 gap-4 items-start">
+        <section className="col-span-2 h-[280px] bg-white rounded-xl border border-slate-100 shadow-sm p-6">
+          <h2 className="text-base font-semibold text-slate-800 mb-8">XRPL Settlement Flow</h2>
           <SettlementFlow status={m.summary.latestTransactionStatus?.status} />
         </section>
 
-        <section className="bg-white rounded-lg border p-6">
-          <h2 className="text-lg font-semibold mb-3">Treasury Balance ({m.token.displayLabel})</h2>
-          <div className="space-y-1 text-sm">
-            <Row label="Before Payout" value={fmt(m.treasuryBalanceCard.beforePayout)} />
-            <Row label="After Payout" value={fmt(m.treasuryBalanceCard.afterPayout)} />
-            <Row
-              label="Change"
-              value={`${m.treasuryBalanceCard.change} (${m.treasuryBalanceCard.changePercent}%)`}
-              tone={Number(m.treasuryBalanceCard.change) < 0 ? 'rose' : 'emerald'}
-            />
-          </div>
-        </section>
+        <TreasuryBalanceCard
+          token={m.token.displayLabel}
+          beforePayout={m.treasuryBalanceCard.beforePayout}
+          afterPayout={m.treasuryBalanceCard.afterPayout}
+          change={m.treasuryBalanceCard.change}
+          changePercent={m.treasuryBalanceCard.changePercent}
+        />
       </div>
 
+      {/* Transactions + Investor Balances */}
       <div className="grid grid-cols-3 gap-4">
-        <section className="col-span-2 bg-white rounded-lg border p-6">
-          <h2 className="text-lg font-semibold mb-3">Recent XRPL Transactions</h2>
+        <section className="col-span-2 bg-white rounded-xl border border-slate-100 shadow-sm p-6">
+          <h2 className="text-base font-semibold text-slate-800 mb-3">Recent XRPL Transactions</h2>
           <table className="w-full text-sm">
             <thead className="text-left text-slate-500 border-b">
               <tr>
-                <th className="py-2">Tx Hash</th>
-                <th className="py-2">Amount</th>
-                <th className="py-2">Status</th>
-                <th className="py-2">Ledger</th>
-                <th className="py-2">Time (UTC)</th>
-                <th className="py-2">Explorer</th>
+                <th className="py-2 font-medium">Tx Hash</th>
+                <th className="py-2 font-medium">Amount</th>
+                <th className="py-2 font-medium">Status</th>
+                <th className="py-2 font-medium">Ledger</th>
+                <th className="py-2 font-medium">Time (UTC)</th>
+                <th className="py-2 font-medium">Explorer</th>
               </tr>
             </thead>
             <tbody>
               {m.recentTransactions.map((t) => (
-                <tr key={t.txHash} className="border-b">
-                  <td className="py-2 font-mono text-xs">{short(t.txHash)}</td>
-                  <td className="py-2">{t.amount ? Number(t.amount).toLocaleString() : '—'}</td>
-                  <td className="py-2">{t.status}</td>
-                  <td className="py-2">{t.ledgerIndex?.toLocaleString() ?? '—'}</td>
-                  <td className="py-2 text-xs">{t.timestampUtc ? new Date(t.timestampUtc).toISOString().slice(0, 19) : '—'}</td>
-                  <td className="py-2">
-                    <a className="text-blue-600 text-xs underline" href={t.explorerUrl} target="_blank" rel="noreferrer">↗</a>
+                <tr key={t.txHash} className="border-b last:border-0">
+                  <td className="py-2.5 font-mono text-xs text-slate-700">{short(t.txHash)}</td>
+                  <td className="py-2.5 tabular-nums">{t.amount ? Number(t.amount).toLocaleString() : '—'}</td>
+                  <td className="py-2.5">
+                    <TxStatusBadge status={t.status} />
+                  </td>
+                  <td className="py-2.5 text-slate-600">{t.ledgerIndex?.toLocaleString() ?? '—'}</td>
+                  <td className="py-2.5 text-xs text-slate-500">
+                    {t.timestampUtc ? new Date(t.timestampUtc).toISOString().slice(0, 19).replace('T', ' ') : '—'}
+                  </td>
+                  <td className="py-2.5">
+                    <a
+                      className="text-sky-600 text-xs hover:underline"
+                      href={t.explorerUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      ↗ View
+                    </a>
                   </td>
                 </tr>
               ))}
               {m.recentTransactions.length === 0 && (
-                <tr><td className="py-3 text-slate-500" colSpan={6}>No transactions yet.</td></tr>
+                <tr>
+                  <td className="py-4 text-slate-400 text-sm" colSpan={6}>
+                    No transactions yet.
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
         </section>
 
-        <section className="bg-white rounded-lg border p-6">
-          <h2 className="text-lg font-semibold mb-3">Investor Balances</h2>
-          <ul className="space-y-2 text-sm">
+        <section className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
+          <h2 className="text-base font-semibold text-slate-800 mb-3">Investor Balances</h2>
+          <ul className="space-y-3">
             {m.investorBalances.map((b) => (
-              <li key={b.investorId} className="flex items-center justify-between">
+              <li key={b.investorId} className="flex items-center justify-between text-sm">
                 <div>
-                  <div className="font-medium">{b.investorName}</div>
-                  <div className="text-xs text-slate-500">{b.investorId}</div>
+                  <p className="font-medium text-slate-800">{b.investorName}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{b.investorId}</p>
                 </div>
                 <div className="text-right">
-                  <div>{fmt(b.balance)}</div>
-                  <div className="text-xs text-slate-500">{b.percent}%</div>
+                  <p className="font-medium tabular-nums">{fmt(b.balance)}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{b.percent}%</p>
                 </div>
               </li>
             ))}
@@ -111,23 +178,19 @@ export default async function SettlementMonitor({ params }: { params: { fundId: 
   )
 }
 
-function Card({ label, value, sub, mono }: { label: string; value: string; sub?: string; mono?: boolean }) {
+function TxStatusBadge({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    VALIDATED: 'bg-emerald-50 text-emerald-700 border border-emerald-100',
+    REFLECTED: 'bg-emerald-50 text-emerald-700 border border-emerald-100',
+    SUBMITTED: 'bg-sky-50 text-sky-700 border border-sky-100',
+    PREPARED:  'bg-slate-50 text-slate-600 border border-slate-100',
+    FAILED:    'bg-rose-50 text-rose-700 border border-rose-100',
+  }
+  const cls = styles[status] ?? 'bg-slate-50 text-slate-600 border border-slate-100'
   return (
-    <div className="bg-white rounded-lg border p-4">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className={`text-lg font-semibold mt-1 ${mono ? 'font-mono' : ''}`}>{value}</div>
-      {sub && <div className="text-xs text-slate-500 mt-1">{sub}</div>}
-    </div>
-  )
-}
-
-function Row({ label, value, tone }: { label: string; value: string; tone?: 'rose' | 'emerald' }) {
-  const cls = tone === 'rose' ? 'text-rose-600' : tone === 'emerald' ? 'text-emerald-600' : ''
-  return (
-    <div className="flex justify-between">
-      <span className="text-slate-500">{label}</span>
-      <span className={cls}>{value}</span>
-    </div>
+    <span className={`inline-block text-[11px] px-2 py-0.5 rounded-full font-medium ${cls}`}>
+      {status}
+    </span>
   )
 }
 
