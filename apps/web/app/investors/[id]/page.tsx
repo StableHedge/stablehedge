@@ -1,3 +1,5 @@
+import { Landmark, Calendar, CircleDollarSign, Wallet, ArrowLeftRight } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { api } from '@/lib/api'
 
 export const dynamic = 'force-dynamic'
@@ -36,7 +38,11 @@ export default async function InvestorStatement({
       </div>
 
       <section className="grid grid-cols-5 gap-4">
-        <StatCard label="Funds" value={String(portfolio.totals.fundCount)} />
+        <StatCard
+          label="Funds"
+          value={String(portfolio.totals.fundCount)}
+          icon={Landmark}
+        />
         <StatCard
           label="Beginning Value"
           value={
@@ -44,10 +50,14 @@ export default async function InvestorStatement({
               ? `$${Number(portfolio.totals.totalBeginningValueUsd).toLocaleString()}`
               : '—'
           }
+          icon={Calendar}
         />
         <StatCard
           label="Total Distributed (USD)"
           value={`$${Number(portfolio.totals.totalDistributionsUsd).toLocaleString()}`}
+          icon={CircleDollarSign}
+          iconBg="bg-sky-50"
+          iconColor="text-sky-600"
         />
         <StatCard
           label="Total Distributed (KRW)"
@@ -56,10 +66,15 @@ export default async function InvestorStatement({
               ? `₩${Number(portfolio.totals.totalDistributionsKrw).toLocaleString()}`
               : '—'
           }
+          icon={Wallet}
         />
         <StatCard
           label="Settlement Status"
-          value={`${portfolio.totals.settledCount} settled / ${portfolio.totals.pendingCount} pending`}
+          value={`${portfolio.totals.settledCount} settled`}
+          sub={`${portfolio.totals.pendingCount} pending`}
+          icon={ArrowLeftRight}
+          iconBg="bg-indigo-50"
+          iconColor="text-indigo-500"
         />
       </section>
 
@@ -201,11 +216,31 @@ export default async function InvestorStatement({
   )
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function StatCard({
+  label,
+  value,
+  sub,
+  icon: Icon,
+  iconBg = 'bg-slate-100',
+  iconColor = 'text-slate-500',
+}: {
+  label: string
+  value: string
+  sub?: string
+  icon: LucideIcon
+  iconBg?: string
+  iconColor?: string
+}) {
   return (
-    <div className="rounded-lg border bg-white p-4">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className="mt-2 text-xl font-semibold">{value}</div>
+    <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 flex items-center gap-3.5">
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg}`}>
+        <Icon size={20} className={iconColor} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-slate-500">{label}</p>
+        <p className="text-base font-semibold mt-0.5 tabular-nums text-slate-900 truncate leading-snug">{value}</p>
+        {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+      </div>
     </div>
   )
 }
