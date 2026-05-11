@@ -11,8 +11,21 @@ export default async function SettlementMonitor({ params }: { params: { fundId: 
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Page header */}
       <div>
+        <div className="flex items-center justify-between mb-3">
+          <nav className="flex items-center gap-1.5 text-sm">
+            <span className="text-slate-400">Dashboard</span>
+            <span className="text-slate-300">/</span>
+            <span className="text-slate-600 font-medium">XRPL Settlement Monitor</span>
+          </nav>
+          <select className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer">
+            <option>Q1-2026</option>
+            <option>Q2-2026</option>
+            <option>Q3-2026</option>
+          </select>
+        </div>
+        <hr className="border-slate-200 mb-4" />
         <h1 className="text-3xl font-semibold text-slate-900">XRPL Settlement Monitor</h1>
         <p className="text-m font-medium text-sky-600 mt-0.5">{m.fund.name}</p>
       </div>

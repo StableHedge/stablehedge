@@ -29,18 +29,25 @@ export default async function InvestorStatement({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-sm text-slate-500">Home / Investor Statement</div>
-          <h1 className="mt-1 text-3xl font-semibold">Investor Portfolio Statement</h1>
-          <div className="mt-2 text-sm text-slate-500">
-            {portfolio.investor.name} · {portfolio.investor.externalId}
-            {statements.filters.period ? ` · ${statements.filters.period}` : ''}
-            {statements.filters.fundId ? ` · ${statements.filters.fundId}` : ''}
+      <div>
+        <nav className="flex items-center gap-1.5 text-sm mb-3">
+          <span className="text-slate-400">Dashboard</span>
+          <span className="text-slate-300">/</span>
+          <span className="text-slate-600 font-medium">Investor Statement</span>
+        </nav>
+        <hr className="border-slate-200 mb-4" />
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-semibold">Investor Portfolio Statement</h1>
+            <div className="mt-2 text-sm text-slate-500">
+              {portfolio.investor.name} · {portfolio.investor.externalId}
+              {statements.filters.period ? ` · ${statements.filters.period}` : ''}
+              {statements.filters.fundId ? ` · ${statements.filters.fundId}` : ''}
+            </div>
           </div>
-        </div>
-        <div className="flex-shrink-0 pt-1">
-          <HeaderActions />
+          <div className="flex-shrink-0 pt-1">
+            <HeaderActions />
+          </div>
         </div>
       </div>
 
