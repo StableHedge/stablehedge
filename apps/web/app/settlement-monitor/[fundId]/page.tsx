@@ -2,6 +2,7 @@ import { api } from '@/lib/api'
 import { SettlementFlow } from './settlement-flow'
 import { KpiCard, WalletKpiCard, StatusKpiCard } from './kpi-cards'
 import { TreasuryBalanceCard } from './treasury-balance-card'
+import { InvestorBalancesChart } from './investor-balances-chart'
 
 export const dynamic = 'force-dynamic'
 
@@ -157,21 +158,8 @@ export default async function SettlementMonitor({ params }: { params: { fundId: 
         </section>
 
         <section className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
-          <h2 className="text-base font-semibold text-slate-800 mb-3">Investor Balances</h2>
-          <ul className="space-y-3">
-            {m.investorBalances.map((b) => (
-              <li key={b.investorId} className="flex items-center justify-between text-sm">
-                <div>
-                  <p className="font-medium text-slate-800">{b.investorName}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{b.investorId}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-medium tabular-nums">{fmt(b.balance)}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{b.percent}%</p>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <h2 className="text-base font-semibold text-slate-800 mb-4">Investor Balances</h2>
+          <InvestorBalancesChart balances={m.investorBalances} />
         </section>
       </div>
     </div>
